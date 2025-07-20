@@ -318,6 +318,9 @@ async def main():
         print(f"📋 Parsing analysis saved in: parsing_failures_analysis.json")
 
 if __name__ == "__main__":
+    import time
+    total_start_time = time.time()
+    
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
@@ -326,3 +329,7 @@ if __name__ == "__main__":
         print(f"❌ Fatal error: {e}")
         import traceback
         traceback.print_exc()
+    finally:
+        total_end_time = time.time()
+        total_elapsed = total_end_time - total_start_time
+        print(f"\n🏁 Total program execution time: {total_elapsed:.2f} seconds ({total_elapsed/60:.1f} minutes)")

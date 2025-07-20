@@ -431,6 +431,9 @@ class GameMaster:
 # Async runner function
 async def run_async_test(num_agents: int = 5, model: str = "llama3.1:8b", client_type: str = "ollama", 
                    temperature: float = 0.7, mode: str = "mean", run_id: int = 1):
+    import time
+    start_time = time.time()
+    
     game = GameMaster(mode=mode, temperature=temperature, num_agents=num_agents, run_id=run_id)
    
     # Add agents
@@ -440,12 +443,18 @@ async def run_async_test(num_agents: int = 5, model: str = "llama3.1:8b", client
     # Play and results are auto-saved
     await game.play_game()
     
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    
     print(f"\n📁 Results saved in: {game.results_dir}")
+    print(f"⏱️  Total execution time: {elapsed_time:.2f} seconds")
+    
     return game.results_dir
 
 # Update the __main__ section
 if __name__ == "__main__":
     import asyncio
+    import time
     
     async def main():
         # Original sum experiment (like Roberts & Goldstone 2011)
@@ -458,4 +467,8 @@ if __name__ == "__main__":
             mode="sum"
         )
     
+    total_start_time = time.time()
     asyncio.run(main())
+    total_end_time = time.time()
+    total_elapsed = total_end_time - total_start_time
+    print(f"\n🏁 Total program execution time: {total_elapsed:.2f} seconds")
