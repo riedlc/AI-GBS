@@ -2,7 +2,6 @@ import os
 import re
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import glob
 
 def parse_game_log(file_path):
@@ -63,6 +62,11 @@ def collect_results(base_path):
 
 def create_plots(results, base_path):
     """Create the plots and save each as separate PDF"""
+    # Check if we have any results
+    if not results:
+        print(f"No results found in {base_path}")
+        return
+    
     # Create plots directory
     plots_dir = os.path.join(base_path, "plots")
     os.makedirs(plots_dir, exist_ok=True)
@@ -70,6 +74,11 @@ def create_plots(results, base_path):
     # Get unique agents and temps
     agents_list = sorted(set(k[0] for k in results.keys()))
     temp_list = sorted(set(k[1] for k in results.keys()))
+    
+    # Check if we have valid data
+    if not agents_list or not temp_list:
+        print(f"No valid agent/temperature data found in {base_path}")
+        return
     
     # Create data arrays
     n_agents, n_temps = len(agents_list), len(temp_list)
@@ -111,17 +120,19 @@ def create_plots(results, base_path):
     fig1 = plt.figure(figsize=(10, 8))
     ax1 = fig1.add_subplot(111, projection='3d')
     
-    bottom = np.zeros_like(temp_mesh)
-    ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
-              0.08, 0.8, converged_props.ravel(), color='green', alpha=0.8, label='Converged')
-    
-    bottom += converged_props
-    ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
-              0.08, 0.8, not_converged_props.ravel(), color='orange', alpha=0.8, label='Not Converged')
-    
-    bottom += not_converged_props
-    ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
-              0.08, 0.8, parsing_failure_props.ravel(), color='red', alpha=0.8, label='Parsing Failure')
+    # Check if we have any non-zero data for 3D plots
+    if np.any(converged_props) or np.any(not_converged_props) or np.any(parsing_failure_props):
+        bottom = np.zeros_like(temp_mesh)
+        ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
+                  0.08, 0.8, converged_props.ravel(), color='green', alpha=0.8, label='Converged')
+        
+        bottom += converged_props
+        ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
+                  0.08, 0.8, not_converged_props.ravel(), color='orange', alpha=0.8, label='Not Converged')
+        
+        bottom += not_converged_props
+        ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
+                  0.08, 0.8, parsing_failure_props.ravel(), color='red', alpha=0.8, label='Parsing Failure')
     
     ax1.set_xlabel('Temperature')
     ax1.set_ylabel('Agents')

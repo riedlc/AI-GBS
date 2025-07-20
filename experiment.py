@@ -9,6 +9,7 @@ from llm_run import chat
 import asyncio
 import re
 import csv
+from prompt_capture import init_prompt_capture, capture_prompt, save_and_display_prompts
 
 # Custom exception for parsing failures
 class ParsingError(Exception):
@@ -49,6 +50,9 @@ class Agent:
         else:
             # Subsequent rounds: use feedback and history
             prompt = self._build_strategic_prompt(game_history, guess_range, mode)
+        
+        # Capture prompt for analysis (doesn't clutter output)
+        capture_prompt(round_num, self.agent_id, prompt)
         
         # Get response from LLM (now async)
         is_reasoning_model = ("deepseek" in self.model.lower() or "qwen" in self.model.lower())
@@ -204,6 +208,9 @@ class GameMaster:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             self.results_dir = f"results/experiment_run_{timestamp}"
         os.makedirs(self.results_dir, exist_ok=True)
+        
+        # Initialize prompt capture
+        init_prompt_capture(self.results_dir)
         
         # Save run configuration
         self._save_config()
@@ -444,6 +451,9 @@ class GameMaster:
         
         # Save final summary
         self._save_final_summary()
+        
+        # Save and display captured prompts
+        save_and_display_prompts()
         
         return self.game_history
     
