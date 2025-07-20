@@ -346,7 +346,7 @@ async def main():
         print(f"   ✅ Successful configs: {total_successful}")
         print(f"   ❌ Failed configs: {total_failed}")
         print(f"   🔤 Parsing failed configs: {total_parsing_failed}")
-        print(f"   📈 Parsing failure rate: {parsing_analysis['failure_rate']:.1%}")
+        print(f"   📈 Parsing failure rate: {failure_analysis['parsing_failure_rate']:.1%}")
         print(f"   📦 Batches completed: {len(final_progress['batches_completed'])}/{total_batches}")
         print(f"   ⏱️  Total duration: {total_duration/3600:.1f} hours")
         print(f"📁 Results saved in: {batch_folder}")
