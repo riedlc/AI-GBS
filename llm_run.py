@@ -1,8 +1,18 @@
 # llm_run.py - Updated with async and better error handling
-from ollama import AsyncClient as OllamaAsyncClient
-from openai import AsyncOpenAI
+# from ollama import AsyncClient as OllamaAsyncClient
+try:
+    from openai import AsyncOpenAI
+except ImportError:
+    print("Warning: openai package not installed. Install with: pip install openai")
+    AsyncOpenAI = None
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    print("Warning: python-dotenv package not installed. Install with: pip install python-dotenv")
+    load_dotenv = lambda: None
+
 import os
-from dotenv import load_dotenv
 import asyncio
 import random
 
@@ -11,7 +21,7 @@ load_dotenv()
 
 # Global client instances to reuse connections
 _ollama_client = None
-_openrouter_client = None
+_openai_client = None
 
 async def get_ollama_client():
     global _ollama_client
@@ -19,21 +29,22 @@ async def get_ollama_client():
         _ollama_client = OllamaAsyncClient()
     return _ollama_client
 
-async def get_openrouter_client():
-    global _openrouter_client
-    if _openrouter_client is None:
-        _openrouter_client = AsyncOpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.getenv("OPEN_ROUTER_API_KEY"),
+async def get_openai_client():
+    global _openai_client
+    if AsyncOpenAI is None:
+        raise ImportError("openai package not installed. Install with: pip install openai")
+    if _openai_client is None:
+        _openai_client = AsyncOpenAI(
+            api_key="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",
         )
-    return _openrouter_client
+    return _openai_client
 
 async def cleanup_clients():
     """Clean up async clients"""
-    global _ollama_client, _openrouter_client
-    if _openrouter_client:
-        await _openrouter_client.close()
-        _openrouter_client = None
+    global _ollama_client, _openai_client
+    if _openai_client:
+        await _openai_client.close()
+        _openai_client = None
     # Ollama client doesn't need explicit cleanup
 
 async def chat(model, prompt, system_prompt=None, temperature=0.0, client_type="ollama", max_tokens=None, max_retries=3):
@@ -59,8 +70,8 @@ async def chat(model, prompt, system_prompt=None, temperature=0.0, client_type="
                 )
                 return response
                 
-            elif client_type == "openrouter":
-                client = await get_openrouter_client()
+            elif client_type == "openai":
+                client = await get_openai_client()
                 
                 kwargs = {
                     'model': model,
@@ -93,8 +104,8 @@ if __name__ == "__main__":
         result = await chat('llama3.1:8b', 'Generate a number between 1 and 100', temperature=0, max_tokens=5)
         print("Ollama:", result)
         
-        # OpenRouter
-        result = await chat('deepseek/deepseek-r1:free', 'Generate a number between 1 and 100', temperature=0, client_type="openrouter", max_tokens=5)
-        print("OpenRouter:", result)
+        # OpenAI
+        result = await chat('gpt-4o-mini', 'Generate a number between 1 and 100', temperature=0, client_type="openai", max_tokens=5)
+        print("OpenAI:", result)
     
     asyncio.run(test())

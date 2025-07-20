@@ -102,9 +102,9 @@ class Agent:
     Respond with only an integer between {guess_range[0]} and {guess_range[1]}."""
         
         # Special formatting for deepseek models
-        if "deepseek" in self.model.lower():
-            prompt += f"""\n\nIMPORTANT: End your response with exactly this format:
-    FINAL ANSWER: [your guess as a single integer between {guess_range[0]} and {guess_range[1]}]"""
+    #     if "deepseek" in self.model.lower():
+    #         prompt += f"""\n\nIMPORTANT: End your response with exactly this format:
+    # FINAL ANSWER: [your guess as a single integer between {guess_range[0]} and {guess_range[1]}]"""
         
         return prompt
     
@@ -122,22 +122,23 @@ class Agent:
                 content = str(response)
             
             # Special parsing for deepseek models
-            if "deepseek" in self.model.lower():
-                # Look for "FINAL ANSWER:" and get first number after it
-                final_answer_pos = re.search(r'FINAL ANSWER:', content, re.IGNORECASE)
-                if final_answer_pos:
-                    # Get text after "FINAL ANSWER:" and find first number
-                    after_final_answer = content[final_answer_pos.end():]
-                    numbers_after = re.findall(r'\d+', after_final_answer)
-                    if numbers_after:
-                        guess = int(numbers_after[0])  # First number after FINAL ANSWER:
-                        return guess
-                
-                # Fallback: get the last number in the response
-                numbers = re.findall(r'\d+', content.strip())
-                if numbers:
-                    guess = int(numbers[-1])  # Take LAST number instead of first
-                    return guess
+            # if "deepseek" in self.model.lower():
+            #     # Look for "FINAL ANSWER:" and get first number after it
+            #     final_answer_pos = re.search(r'FINAL ANSWER:', content, re.IGNORECASE)
+            #     if final_answer_pos:
+            #         # Get text after "FINAL ANSWER:" and find first number
+            #         after_final_answer = content[final_answer_pos.end():]
+            #         numbers_after = re.findall(r'\d+', after_final_answer)
+            #         if numbers_after:
+            #             guess = int(numbers_after[0])  # First number after FINAL ANSWER:
+            #             return guess
+            #     # Fallback: get the last number in the response
+            
+            # General number extraction
+            numbers = re.findall(r'\d+', content.strip())
+            if numbers:
+                guess = int(numbers[-1])  # Take LAST number instead of first
+                return guess
             
             # No numbers found
             raise ParsingError(f"Agent {self.agent_id}: No number found in response: '{content[:100]}'")
@@ -297,8 +298,8 @@ class GameMaster:
             else:
                 print(f"Agent {agent.agent_id}: {guess}")
             
-            # Save API response for OpenRouter
-            if agent.client_type == "openrouter":
+            # Save API response for OpenAI
+            if agent.client_type == "openai":
                 try:
                     response_id = f"api_r{round_num:02d}_a{agent.agent_id}"
                     api_file = os.path.join(self.results_dir, f"raw_api_{response_id}.json")
@@ -451,8 +452,8 @@ if __name__ == "__main__":
         print("Running SUM experiment...")
         await run_async_test(
             num_agents=5,
-            model="openai/gpt-4o-mini", 
-            client_type="openrouter",
+            model="gpt-4o-mini", 
+            client_type="openai",
             temperature=1.9,
             mode="sum"
         )
