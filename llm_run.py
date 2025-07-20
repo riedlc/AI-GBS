@@ -1,5 +1,15 @@
 # llm_run.py - Updated with async and better error handling
 # from ollama import AsyncClient as OllamaAsyncClient
+
+
+
+# import os
+import asyncio
+import random
+
+# Load environment variables
+# load_dotenv()
+
 try:
     from openai import AsyncOpenAI
 except ImportError:
@@ -12,22 +22,17 @@ except ImportError:
     print("Warning: python-dotenv package not installed. Install with: pip install python-dotenv")
     load_dotenv = lambda: None
 
-import os
-import asyncio
-import random
 
-# Load environment variables
-load_dotenv()
 
 # Global client instances to reuse connections
-_ollama_client = None
+# _ollama_client = None
 _openai_client = None
 
-async def get_ollama_client():
-    global _ollama_client
-    if _ollama_client is None:
-        _ollama_client = OllamaAsyncClient()
-    return _ollama_client
+# async def get_ollama_client():
+#     global _ollama_client
+#     if _ollama_client is None:
+#         _ollama_client = OllamaAsyncClient()
+#     return _ollama_client
 
 async def get_openai_client():
     global _openai_client
