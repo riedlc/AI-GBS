@@ -27,7 +27,6 @@ async def test_openai_connection():
         response = await chat(
             model="gpt-4o-mini",
             prompt="Generate a random number between 1 and 10. Respond with only the number.",
-            client_type="openai",
             temperature=0.0,
             max_tokens=5
         )
@@ -69,8 +68,8 @@ async def test_experiment_structure():
         )
         
         # Add agents
-        game_master.add_agent("gpt-4o-mini", "openai")
-        game_master.add_agent("gpt-4o-mini", "openai")
+        game_master.add_agent("gpt-4o-mini")
+        game_master.add_agent("gpt-4o-mini")
         
         print(f"✅ GameMaster created successfully")
         print(f"📊 Mode: {game_master.mode}")

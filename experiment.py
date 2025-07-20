@@ -31,10 +31,9 @@ class Round:
 class Agent:
     """Represents an LLM agent participant"""
     
-    def __init__(self, agent_id: int, model: str, client_type: str, temperature: float):
+    def __init__(self, agent_id: int, model: str, temperature: float):
         self.agent_id = agent_id
         self.model = model
-        self.client_type = client_type
         self.temperature = temperature
         self.guess_history = []
         self.last_successful_guess = None  # Track last successful guess for reuse
@@ -56,7 +55,6 @@ class Agent:
             model=self.model,
             prompt=prompt,
             temperature=self.temperature,
-            client_type=self.client_type,
             max_tokens=None if is_reasoning_model else 2
         )
         
@@ -188,10 +186,10 @@ class GameMaster:
         # Save run configuration
         self._save_config()
     
-    def add_agent(self, model: str, client_type: str) -> Agent:
+    def add_agent(self, model: str) -> Agent:
         """Add an agent to the game"""
         agent_id = len(self.agents)
-        agent = Agent(agent_id, model, client_type, self.temperature)
+        agent = Agent(agent_id, model, self.temperature)
         self.agents.append(agent)
         return agent
     
@@ -209,7 +207,7 @@ class GameMaster:
                 {
                     "agent_id": i,
                     "model": agent.model,
-                    "client_type": agent.client_type
+                    "client_type": "openai"
                 }
                 for i, agent in enumerate(self.agents)
             ]
@@ -298,8 +296,7 @@ class GameMaster:
             else:
                 print(f"Agent {agent.agent_id}: {guess}")
             
-            # Save API response for OpenAI
-            if agent.client_type == "openai":
+            # Save API response
                 try:
                     response_id = f"api_r{round_num:02d}_a{agent.agent_id}"
                     api_file = os.path.join(self.results_dir, f"raw_api_{response_id}.json")
@@ -429,7 +426,7 @@ class GameMaster:
             json.dump(summary, f, indent=2)
 
 # Async runner function
-async def run_async_test(num_agents: int = 5, model: str = "llama3.1:8b", client_type: str = "ollama", 
+async def run_async_test(num_agents: int = 5, model: str = "gpt-4o-mini", 
                    temperature: float = 0.7, mode: str = "mean", run_id: int = 1):
     import time
     start_time = time.time()
@@ -438,7 +435,7 @@ async def run_async_test(num_agents: int = 5, model: str = "llama3.1:8b", client
    
     # Add agents
     for i in range(num_agents):
-        game.add_agent(model, client_type)
+        game.add_agent(model)
     
     # Play and results are auto-saved
     await game.play_game()
@@ -462,7 +459,6 @@ if __name__ == "__main__":
         await run_async_test(
             num_agents=5,
             model="gpt-4o-mini", 
-            client_type="openai",
             temperature=1.9,
             mode="sum"
         )

@@ -32,7 +32,6 @@ async def test_timing_configurations():
             await run_async_test(
                 num_agents=config["agents"],
                 model="gpt-4o-mini",
-                client_type="openai",
                 temperature=config["temp"],
                 mode="sum"
             )
