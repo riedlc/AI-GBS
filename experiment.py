@@ -92,17 +92,13 @@ class Agent:
         for round_data in game_history:
             prompt += f"Round {round_data.round_num}: "
             prompt += f"Your guess: {round_data.guesses[self.agent_id]}\n"
-            prompt += f"All player guesses: {list(round_data.guesses.values())}\n"
+            ##removing all player guesses to avoid cheating from the prompt
+            # prompt += f"All player guesses: {list(round_data.guesses.values())}\n"
             prompt += f"Result: {round_data.feedback}\n\n"
         
         prompt += f"""Based on this feedback, what should your next guess be?
 
     Respond with only an integer between {guess_range[0]} and {guess_range[1]}."""
-        
-        # Special formatting for deepseek models
-    #     if "deepseek" in self.model.lower():
-    #         prompt += f"""\n\nIMPORTANT: End your response with exactly this format:
-    # FINAL ANSWER: [your guess as a single integer between {guess_range[0]} and {guess_range[1]}]"""
         
         return prompt
     
