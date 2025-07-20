@@ -27,6 +27,7 @@ class Round:
     prompts_used: Dict[int, str] = None  # agent_id -> prompt
     api_response_ids: Dict[int, str] = None  # agent_id -> response file ID
     parsing_failures: Dict[int, str] = None  # agent_id -> error message for failed parses
+    fallback_responses: Dict[int, str] = None  # agent_id -> error message for API fallbacks
 
 class Agent:
     """Represents an LLM agent participant"""
@@ -92,8 +93,6 @@ class Agent:
         for round_data in game_history:
             prompt += f"Round {round_data.round_num}: "
             prompt += f"Your guess: {round_data.guesses[self.agent_id]}\n"
-            ##removing all player guesses to avoid cheating from the prompt
-            # prompt += f"All player guesses: {list(round_data.guesses.values())}\n"
             prompt += f"Result: {round_data.feedback}\n\n"
         
         prompt += f"""Based on this feedback, what should your next guess be?
@@ -104,45 +103,71 @@ class Agent:
     
     def _extract_number(self, response, guess_range: tuple) -> int:
         """Extract number from LLM response - raises ParsingError if parsing fails"""
-        try:
-            # Handle different response formats from different clients
-            if hasattr(response, 'message'):
-                # Ollama format
-                content = response.message.content
-            elif hasattr(response, 'choices'):
-                # OpenAI/OpenRouter format
-                content = response.choices[0].message.content
-            else:
-                content = str(response)
-            
-            # Special parsing for deepseek models
-            # if "deepseek" in self.model.lower():
-            #     # Look for "FINAL ANSWER:" and get first number after it
-            #     final_answer_pos = re.search(r'FINAL ANSWER:', content, re.IGNORECASE)
-            #     if final_answer_pos:
-            #         # Get text after "FINAL ANSWER:" and find first number
-            #         after_final_answer = content[final_answer_pos.end():]
-            #         numbers_after = re.findall(r'\d+', after_final_answer)
-            #         if numbers_after:
-            #             guess = int(numbers_after[0])  # First number after FINAL ANSWER:
-            #             return guess
-            #     # Fallback: get the last number in the response
-            
-            # General number extraction
-            numbers = re.findall(r'\d+', content.strip())
-            if numbers:
-                guess = int(numbers[-1])  # Take LAST number instead of first
+        return self._extract_number_robust(response, guess_range)
+    
+    def _extract_number_robust(self, response, guess_range: tuple) -> int:
+        """Try multiple parsing strategies for robust number extraction"""
+        strategies = [
+            self._extract_last_number,
+            self._extract_first_number, 
+            self._extract_any_number,
+            lambda r, g: self._generate_fallback(g)
+        ]
+        
+        for strategy in strategies:
+            try:
+                return strategy(response, guess_range)
+            except ParsingError:
+                continue
+        
+        # If all strategies fail, use fallback
+        return self._generate_fallback(guess_range)
+    
+    def _extract_last_number(self, response, guess_range: tuple) -> int:
+        """Extract the last number from response"""
+        content = self._get_response_content(response)
+        numbers = re.findall(r'\d+', content.strip())
+        if numbers:
+            guess = int(numbers[-1])
+            if guess_range[0] <= guess <= guess_range[1]:
                 return guess
-            
-            # No numbers found
-            raise ParsingError(f"Agent {self.agent_id}: No number found in response: '{content[:100]}'")
-                
-        except ParsingError:
-            # Re-raise parsing errors
-            raise
-        except Exception as e:
-            # Convert other errors to parsing errors
-            raise ParsingError(f"Agent {self.agent_id}: Error extracting number: {e}")
+        raise ParsingError(f"Agent {self.agent_id}: No valid number found in response")
+    
+    def _extract_first_number(self, response, guess_range: tuple) -> int:
+        """Extract the first number from response"""
+        content = self._get_response_content(response)
+        numbers = re.findall(r'\d+', content.strip())
+        if numbers:
+            guess = int(numbers[0])
+            if guess_range[0] <= guess <= guess_range[1]:
+                return guess
+        raise ParsingError(f"Agent {self.agent_id}: No valid number found in response")
+    
+    def _extract_any_number(self, response, guess_range: tuple) -> int:
+        """Extract any number from response, even if outside range"""
+        content = self._get_response_content(response)
+        numbers = re.findall(r'\d+', content.strip())
+        if numbers:
+            guess = int(numbers[0])
+            # Clamp to valid range
+            guess = max(guess_range[0], min(guess, guess_range[1]))
+            return guess
+        raise ParsingError(f"Agent {self.agent_id}: No number found in response")
+    
+    def _generate_fallback(self, guess_range: tuple) -> int:
+        """Generate a fallback guess"""
+        return (guess_range[0] + guess_range[1]) // 2
+    
+    def _get_response_content(self, response) -> str:
+        """Extract content from different response formats"""
+        if hasattr(response, 'message'):
+            # Ollama format
+            return response.message.content
+        elif hasattr(response, 'choices'):
+            # OpenAI/OpenRouter format
+            return response.choices[0].message.content
+        else:
+            return str(response)
 
 class GameMaster:
     """Orchestrates the number guessing game"""
@@ -232,6 +257,11 @@ class GameMaster:
             failure_info = ", ".join([f"Agent{aid}:REUSED" for aid in round_data.parsing_failures.keys()])
             log_line += f", parsing_failures=[{failure_info}]"
         
+        # Add fallback response info if any
+        if round_data.fallback_responses:
+            fallback_info = ", ".join([f"Agent{aid}:FALLBACK" for aid in round_data.fallback_responses.keys()])
+            log_line += f", api_failures=[{fallback_info}]"
+        
         with open(log_file, 'a') as f:
             f.write(log_line + "\n")
     
@@ -279,18 +309,24 @@ class GameMaster:
         prompts_used = {}
         api_response_ids = {}
         parsing_failures = {}  # Track parsing failures
+        fallback_responses = {}  # Track API fallback responses
         
         for i, (guess, prompt, response, parsing_failed) in enumerate(results):
             agent = self.agents[i]
             guesses[agent.agent_id] = guess
             prompts_used[agent.agent_id] = prompt
             
-            # Track parsing failure
+            # Track parsing failure and fallback responses
             if parsing_failed:
                 parsing_failures[agent.agent_id] = f"Parsing failed, reused previous guess: {guess}"
                 print(f"Agent {agent.agent_id}: {guess} (⚠️ reused due to parsing failure)")
             else:
                 print(f"Agent {agent.agent_id}: {guess}")
+            
+            # Track API fallback responses
+            if hasattr(response, 'is_fallback') and response.is_fallback:
+                fallback_responses[agent.agent_id] = f"API failed, using fallback guess: {guess}"
+                print(f"Agent {agent.agent_id}: {guess} (🚨 API FAILED - using fallback)")
             
             # Save API response
                 try:
@@ -367,6 +403,10 @@ class GameMaster:
             api_response_ids=api_response_ids if api_response_ids else None,
             parsing_failures=parsing_failures if parsing_failures else None
         )
+        
+        # Add fallback responses to round data if any
+        if fallback_responses:
+            round_data.fallback_responses = fallback_responses
         self.game_history.append(round_data)
         
         # Save immediately
