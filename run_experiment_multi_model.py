@@ -188,7 +188,7 @@ async def main():
     model = sys.argv[1]
     
     # ===== EXPERIMENT PARAMETERS =====
-    client_type = "openrouter"
+    client_type = "openai"
     mode = "sum"  # "sum" or "mean"
     max_rounds = 15
     
