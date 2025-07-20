@@ -8,6 +8,7 @@ from typing import List, Dict
 from llm_run import chat
 import asyncio
 import re
+import csv
 
 # Custom exception for parsing failures
 class ParsingError(Exception):
@@ -460,6 +461,29 @@ class GameMaster:
         
         with open(os.path.join(self.results_dir, "summary.json"), 'w') as f:
             json.dump(summary, f, indent=2)
+        
+        # Add CSV export
+        self._save_csv_summary()
+    
+    def _save_csv_summary(self):
+        """Save game data in CSV format: one column per agent, one row per round"""
+        csv_file = os.path.join(self.results_dir, "game_data.csv")
+        
+        # Prepare headers
+        headers = ["round"] + [f"agent_{i+1}" for i in range(len(self.agents))]
+        
+        # Write CSV file
+        with open(csv_file, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader()
+            
+            for round_data in self.game_history:
+                row = {"round": round_data.round_num}
+                for agent_id in range(len(self.agents)):
+                    row[f"agent_{agent_id + 1}"] = round_data.guesses[agent_id]
+                writer.writerow(row)
+        
+        print(f"📊 CSV data saved: {csv_file}")
 
 # Async runner function
 async def run_async_test(num_agents: int = 5, model: str = "gpt-4o-mini", 
