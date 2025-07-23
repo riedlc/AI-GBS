@@ -7,9 +7,9 @@
 # "deepseek/deepseek-chat-v3-0324"
 #  "deepseek/deepseek-r1-0528" 
 
-models=(
-   "deepseek/deepseek-chat-v3-0324"
-)
+# models=(
+#    "deepseek/deepseek-chat-v3-0324"
+# )
 
 # Create tmux sessions for each model
 for model in "${models[@]}"; do

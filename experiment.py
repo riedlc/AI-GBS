@@ -54,14 +54,14 @@ class Agent:
         # Capture prompt for analysis (doesn't clutter output)
         capture_prompt(round_num, self.agent_id, prompt)
         
-        # Get response from LLM (now async)
-        is_reasoning_model = ("deepseek" in self.model.lower() or "qwen" in self.model.lower())
+        # # Get response from LLM (now async)
+        # is_reasoning_model = ("deepseek" in self.model.lower() or "qwen" in self.model.lower())
         
         response = await chat(
             model=self.model,
             prompt=prompt,
             temperature=self.temperature,
-            max_tokens=None if is_reasoning_model else 2
+            max_tokens= 2
         )
         
         # Extract number from response - handle parsing failures gracefully
@@ -397,6 +397,17 @@ class GameMaster:
             feedback = f"too LOW by {abs(difference)}"
         
         print(f"Feedback: {feedback}")
+
+                # Generate feedback
+        # difference = result_value - self.mystery_number
+        # if difference == 0:
+        #     feedback = "CORRECT! 🎯"
+        # elif difference > 0:
+        #     feedback = f"too HIGH by {difference}"
+        # else:
+        #     feedback = f"too LOW by {abs(difference)}"
+        
+        # print(f"Feedback: {feedback}")
         
         # Store round data
         round_data = Round(
@@ -477,7 +488,7 @@ class GameMaster:
     
     def _save_csv_summary(self):
         """Save game data in CSV format: one column per agent, one row per round"""
-        csv_file = os.path.join(self.results_dir, "game_data.csv")
+        csv_file = os.path.join(self.results_dir, f"game_data - Target: {self.mystery_number} .csv")
         
         # Prepare headers
         headers = ["round"] + [f"agent_{i+1}" for i in range(len(self.agents))]
