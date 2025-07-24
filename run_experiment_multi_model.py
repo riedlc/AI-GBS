@@ -19,7 +19,8 @@ async def run_single_config(agents, temp, run_id, batch_folder, model, client_ty
         game = GameMaster(mode=mode, temperature=temp, max_rounds=max_rounds, 
                          num_agents=agents, batch_folder=batch_folder, run_id=run_id)
         for i in range(agents):
-            game.add_agent(model, client_type)
+            game.add_agent(model)
+            # game.add_agent(model, client_type)
         
         await game.play_game()
         
@@ -228,7 +229,8 @@ async def main():
     # ===== EXPERIMENT PARAMETERS =====
     client_type = "openai"
     mode = "sum"  # "sum" or "mean"
-    max_rounds = 15
+    # max_rounds = 15
+    max_rounds = 20
     
     # # ===== MASSIVE BATCH SETTINGS =====
     # agents_list = list(range(2, 21))                    # 2 to 20 included (19 values)
