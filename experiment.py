@@ -390,11 +390,12 @@ class GameMaster:
         # Generate feedback
         difference = result_value - self.mystery_number
         if difference == 0:
-            feedback = "CORRECT! 🎯"
+            feedback = "CORRECT! "
+
         elif difference > 0:
-            feedback = f"too HIGH by {difference}"
+            feedback = f"too HIGH "
         else:
-            feedback = f"too LOW by {abs(difference)}"
+            feedback = f"too LOW "
         
         print(f"Feedback: {feedback}")
 
