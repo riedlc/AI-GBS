@@ -7,6 +7,9 @@ import json
 import time
 import sys
 
+
+
+
 async def run_single_config(agents, temp, run_id, batch_folder, model, client_type, mode, max_rounds):
     """Run a single configuration asynchronously"""
     config_id = f"{agents}a_t{temp:.1f}_r{run_id}"
@@ -227,10 +230,24 @@ async def main():
     mode = "sum"  # "sum" or "mean"
     max_rounds = 15
     
-    # ===== MASSIVE BATCH SETTINGS =====
-    agents_list = list(range(2, 21))                    # 2 to 20 included (19 values)
-    temp_list = [float(i/10) for i in range(0, 21)]     # 0.0 to 2.0 in 0.1 steps (21 values)
-    runs_per_config = 10                                 # 10 runs per config
+    # # ===== MASSIVE BATCH SETTINGS =====
+    # agents_list = list(range(2, 21))                    # 2 to 20 included (19 values)
+    # temp_list = [float(i/10) for i in range(0, 21)]     # 0.0 to 2.0 in 0.1 steps (21 values)
+    # runs_per_config = 10                                 # 10 runs per config
+
+    ##adding llm params as per professor
+    ##as per the original simulation
+    # agents_list = list(range(2, 21))                    # 2 to 20
+    # temp_list = [round(0.1 * i, 1) for i in range(0, 11)]  # 0.0 to 1.0
+    # runs_per_config = 50
+
+    #for single run params
+    agents_list = [2]                   # 2 to 20
+    temp_list = [0.5]
+    runs_per_config = 50
+
+
+
     
     # ===== BATCHING SETTINGS =====
     batch_size = 20          # Configs per batch
