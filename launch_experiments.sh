@@ -8,7 +8,7 @@
 #  "deepseek/deepseek-r1-0528" 
 
 models=(
-   "deepseek/deepseek-chat-v3-0324"
+   "gpt-4.1-2025-04-14"
 )
 
 # Create tmux sessions for each model

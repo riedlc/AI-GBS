@@ -8,6 +8,8 @@ from typing import List, Dict
 from llm_run import chat
 import asyncio
 import re
+import csv
+from prompt_capture import init_prompt_capture, capture_prompt, save_and_display_prompts
 
 # Custom exception for parsing failures
 class ParsingError(Exception):
@@ -27,14 +29,14 @@ class Round:
     prompts_used: Dict[int, str] = None  # agent_id -> prompt
     api_response_ids: Dict[int, str] = None  # agent_id -> response file ID
     parsing_failures: Dict[int, str] = None  # agent_id -> error message for failed parses
+    fallback_responses: Dict[int, str] = None  # agent_id -> error message for API fallbacks
 
 class Agent:
     """Represents an LLM agent participant"""
     
-    def __init__(self, agent_id: int, model: str, client_type: str, temperature: float):
+    def __init__(self, agent_id: int, model: str, temperature: float):
         self.agent_id = agent_id
         self.model = model
-        self.client_type = client_type
         self.temperature = temperature
         self.guess_history = []
         self.last_successful_guess = None  # Track last successful guess for reuse
@@ -44,20 +46,34 @@ class Agent:
         
         if round_num == 1:
             # First round: random guess
-            prompt = f"Generate a random integer between {guess_range[0]} and {guess_range[1]}. Respond with only the number."
+            # prompt = f"Generate a random integer between {guess_range[0]} and {guess_range[1]}. Respond with only the number."
+            game_desc = "sum guessing game" if mode == "sum" else "number guessing game"
+            target_desc = "sum to the mystery number" if mode == "sum" else "average to the mystery number"
+            prompt = f"""You are playing a {game_desc}. Your goal is to help your group {target_desc}.
+            Your guess range is {guess_range[0]} to {guess_range[1]}.
+
+            Game History:
+                This is the first round and you have not made any guesses yet.
+            Result: There is no feedback on the group guess yet
+
+            Based on this information, what should your first guess be?
+
+            Respond with only an integer between {guess_range[0]} and {guess_range[1]}."""
         else:
             # Subsequent rounds: use feedback and history
             prompt = self._build_strategic_prompt(game_history, guess_range, mode)
         
-        # Get response from LLM (now async)
-        is_reasoning_model = ("deepseek" in self.model.lower() or "qwen" in self.model.lower())
+        # Capture prompt for analysis (doesn't clutter output)
+        capture_prompt(round_num, self.agent_id, prompt)
+        
+        # # Get response from LLM (now async)
+        # is_reasoning_model = ("deepseek" in self.model.lower() or "qwen" in self.model.lower())
         
         response = await chat(
             model=self.model,
             prompt=prompt,
             temperature=self.temperature,
-            client_type=self.client_type,
-            max_tokens=None if is_reasoning_model else 2
+            max_tokens= 2
         )
         
         # Extract number from response - handle parsing failures gracefully
@@ -94,60 +110,81 @@ class Agent:
         for round_data in game_history:
             prompt += f"Round {round_data.round_num}: "
             prompt += f"Your guess: {round_data.guesses[self.agent_id]}\n"
-            prompt += f"All player guesses: {list(round_data.guesses.values())}\n"
             prompt += f"Result: {round_data.feedback}\n\n"
         
         prompt += f"""Based on this feedback, what should your next guess be?
 
     Respond with only an integer between {guess_range[0]} and {guess_range[1]}."""
         
-        # Special formatting for deepseek models
-        if "deepseek" in self.model.lower():
-            prompt += f"""\n\nIMPORTANT: End your response with exactly this format:
-    FINAL ANSWER: [your guess as a single integer between {guess_range[0]} and {guess_range[1]}]"""
-        
         return prompt
     
     def _extract_number(self, response, guess_range: tuple) -> int:
         """Extract number from LLM response - raises ParsingError if parsing fails"""
-        try:
-            # Handle different response formats from different clients
-            if hasattr(response, 'message'):
-                # Ollama format
-                content = response.message.content
-            elif hasattr(response, 'choices'):
-                # OpenAI/OpenRouter format
-                content = response.choices[0].message.content
-            else:
-                content = str(response)
-            
-            # Special parsing for deepseek models
-            if "deepseek" in self.model.lower():
-                # Look for "FINAL ANSWER:" and get first number after it
-                final_answer_pos = re.search(r'FINAL ANSWER:', content, re.IGNORECASE)
-                if final_answer_pos:
-                    # Get text after "FINAL ANSWER:" and find first number
-                    after_final_answer = content[final_answer_pos.end():]
-                    numbers_after = re.findall(r'\d+', after_final_answer)
-                    if numbers_after:
-                        guess = int(numbers_after[0])  # First number after FINAL ANSWER:
-                        return guess
-                
-                # Fallback: get the last number in the response
-                numbers = re.findall(r'\d+', content.strip())
-                if numbers:
-                    guess = int(numbers[-1])  # Take LAST number instead of first
-                    return guess
-            
-            # No numbers found
-            raise ParsingError(f"Agent {self.agent_id}: No number found in response: '{content[:100]}'")
-                
-        except ParsingError:
-            # Re-raise parsing errors
-            raise
-        except Exception as e:
-            # Convert other errors to parsing errors
-            raise ParsingError(f"Agent {self.agent_id}: Error extracting number: {e}")
+        return self._extract_number_robust(response, guess_range)
+    
+    def _extract_number_robust(self, response, guess_range: tuple) -> int:
+        """Try multiple parsing strategies for robust number extraction"""
+        strategies = [
+            self._extract_last_number,
+            self._extract_first_number, 
+            self._extract_any_number,
+            lambda r, g: self._generate_fallback(g)
+        ]
+        
+        for strategy in strategies:
+            try:
+                return strategy(response, guess_range)
+            except ParsingError:
+                continue
+        
+        # If all strategies fail, use fallback
+        return self._generate_fallback(guess_range)
+    
+    def _extract_last_number(self, response, guess_range: tuple) -> int:
+        """Extract the last number from response"""
+        content = self._get_response_content(response)
+        numbers = re.findall(r'\d+', content.strip())
+        if numbers:
+            guess = int(numbers[-1])
+            if guess_range[0] <= guess <= guess_range[1]:
+                return guess
+        raise ParsingError(f"Agent {self.agent_id}: No valid number found in response")
+    
+    def _extract_first_number(self, response, guess_range: tuple) -> int:
+        """Extract the first number from response"""
+        content = self._get_response_content(response)
+        numbers = re.findall(r'\d+', content.strip())
+        if numbers:
+            guess = int(numbers[0])
+            if guess_range[0] <= guess <= guess_range[1]:
+                return guess
+        raise ParsingError(f"Agent {self.agent_id}: No valid number found in response")
+    
+    def _extract_any_number(self, response, guess_range: tuple) -> int:
+        """Extract any number from response, even if outside range"""
+        content = self._get_response_content(response)
+        numbers = re.findall(r'\d+', content.strip())
+        if numbers:
+            guess = int(numbers[0])
+            # Clamp to valid range
+            guess = max(guess_range[0], min(guess, guess_range[1]))
+            return guess
+        raise ParsingError(f"Agent {self.agent_id}: No number found in response")
+    
+    def _generate_fallback(self, guess_range: tuple) -> int:
+        """Generate a fallback guess"""
+        return (guess_range[0] + guess_range[1]) // 2
+    
+    def _get_response_content(self, response) -> str:
+        """Extract content from different response formats"""
+        if hasattr(response, 'message'):
+            # Ollama format
+            return response.message.content
+        elif hasattr(response, 'choices'):
+            # OpenAI/OpenRouter format
+            return response.choices[0].message.content
+        else:
+            return str(response)
 
 class GameMaster:
     """Orchestrates the number guessing game"""
@@ -184,13 +221,16 @@ class GameMaster:
             self.results_dir = f"results/experiment_run_{timestamp}"
         os.makedirs(self.results_dir, exist_ok=True)
         
+        # Initialize prompt capture
+        init_prompt_capture(self.results_dir)
+        
         # Save run configuration
         self._save_config()
     
-    def add_agent(self, model: str, client_type: str) -> Agent:
+    def add_agent(self, model: str) -> Agent:
         """Add an agent to the game"""
         agent_id = len(self.agents)
-        agent = Agent(agent_id, model, client_type, self.temperature)
+        agent = Agent(agent_id, model, self.temperature)
         self.agents.append(agent)
         return agent
     
@@ -208,7 +248,7 @@ class GameMaster:
                 {
                     "agent_id": i,
                     "model": agent.model,
-                    "client_type": agent.client_type
+                    "client_type": "openai"
                 }
                 for i, agent in enumerate(self.agents)
             ]
@@ -236,6 +276,11 @@ class GameMaster:
         if round_data.parsing_failures:
             failure_info = ", ".join([f"Agent{aid}:REUSED" for aid in round_data.parsing_failures.keys()])
             log_line += f", parsing_failures=[{failure_info}]"
+        
+        # Add fallback response info if any
+        if round_data.fallback_responses:
+            fallback_info = ", ".join([f"Agent{aid}:FALLBACK" for aid in round_data.fallback_responses.keys()])
+            log_line += f", api_failures=[{fallback_info}]"
         
         with open(log_file, 'a') as f:
             f.write(log_line + "\n")
@@ -284,21 +329,26 @@ class GameMaster:
         prompts_used = {}
         api_response_ids = {}
         parsing_failures = {}  # Track parsing failures
+        fallback_responses = {}  # Track API fallback responses
         
         for i, (guess, prompt, response, parsing_failed) in enumerate(results):
             agent = self.agents[i]
             guesses[agent.agent_id] = guess
             prompts_used[agent.agent_id] = prompt
             
-            # Track parsing failure
+            # Track parsing failure and fallback responses
             if parsing_failed:
                 parsing_failures[agent.agent_id] = f"Parsing failed, reused previous guess: {guess}"
                 print(f"Agent {agent.agent_id}: {guess} (⚠️ reused due to parsing failure)")
             else:
                 print(f"Agent {agent.agent_id}: {guess}")
             
-            # Save API response for OpenRouter
-            if agent.client_type == "openrouter":
+            # Track API fallback responses
+            if hasattr(response, 'is_fallback') and response.is_fallback:
+                fallback_responses[agent.agent_id] = f"API failed, using fallback guess: {guess}"
+                print(f"Agent {agent.agent_id}: {guess} (🚨 API FAILED - using fallback)")
+            
+            # Save API response
                 try:
                     response_id = f"api_r{round_num:02d}_a{agent.agent_id}"
                     api_file = os.path.join(self.results_dir, f"raw_api_{response_id}.json")
@@ -352,13 +402,25 @@ class GameMaster:
         # Generate feedback
         difference = result_value - self.mystery_number
         if difference == 0:
-            feedback = "CORRECT! 🎯"
+            feedback = "CORRECT! "
+
         elif difference > 0:
-            feedback = f"too HIGH by {difference}"
+            feedback = f"too HIGH "
         else:
-            feedback = f"too LOW by {abs(difference)}"
+            feedback = f"too LOW "
         
         print(f"Feedback: {feedback}")
+
+                # Generate feedback
+        # difference = result_value - self.mystery_number
+        # if difference == 0:
+        #     feedback = "CORRECT! 🎯"
+        # elif difference > 0:
+        #     feedback = f"too HIGH by {difference}"
+        # else:
+        #     feedback = f"too LOW by {abs(difference)}"
+        
+        # print(f"Feedback: {feedback}")
         
         # Store round data
         round_data = Round(
@@ -373,6 +435,10 @@ class GameMaster:
             api_response_ids=api_response_ids if api_response_ids else None,
             parsing_failures=parsing_failures if parsing_failures else None
         )
+        
+        # Add fallback responses to round data if any
+        if fallback_responses:
+            round_data.fallback_responses = fallback_responses
         self.game_history.append(round_data)
         
         # Save immediately
@@ -410,6 +476,9 @@ class GameMaster:
         # Save final summary
         self._save_final_summary()
         
+        # Save and display captured prompts
+        save_and_display_prompts()
+        
         return self.game_history
     
     def _save_final_summary(self):
@@ -426,35 +495,70 @@ class GameMaster:
         
         with open(os.path.join(self.results_dir, "summary.json"), 'w') as f:
             json.dump(summary, f, indent=2)
+        
+        # Add CSV export
+        self._save_csv_summary()
+    
+    def _save_csv_summary(self):
+        """Save game data in CSV format: one column per agent, one row per round"""
+        csv_file = os.path.join(self.results_dir, f"game_data - Target: {self.mystery_number} .csv")
+        
+        # Prepare headers
+        headers = ["round"] + [f"agent_{i+1}" for i in range(len(self.agents))]
+        
+        # Write CSV file
+        with open(csv_file, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader()
+            
+            for round_data in self.game_history:
+                row = {"round": round_data.round_num}
+                for agent_id in range(len(self.agents)):
+                    row[f"agent_{agent_id + 1}"] = round_data.guesses[agent_id]
+                writer.writerow(row)
+        
+        print(f"📊 CSV data saved: {csv_file}")
 
 # Async runner function
-async def run_async_test(num_agents: int = 5, model: str = "llama3.1:8b", client_type: str = "ollama", 
+async def run_async_test(num_agents: int = 5, model: str = "gpt-4o-mini", 
                    temperature: float = 0.7, mode: str = "mean", run_id: int = 1):
+    import time
+    start_time = time.time()
+    
     game = GameMaster(mode=mode, temperature=temperature, num_agents=num_agents, run_id=run_id)
    
     # Add agents
     for i in range(num_agents):
-        game.add_agent(model, client_type)
+        game.add_agent(model)
     
     # Play and results are auto-saved
     await game.play_game()
     
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    
     print(f"\n📁 Results saved in: {game.results_dir}")
+    print(f"⏱️  Total execution time: {elapsed_time:.2f} seconds")
+    
     return game.results_dir
 
 # Update the __main__ section
 if __name__ == "__main__":
     import asyncio
+    import time
     
     async def main():
         # Original sum experiment (like Roberts & Goldstone 2011)
         print("Running SUM experiment...")
         await run_async_test(
             num_agents=5,
-            model="openai/gpt-4o-mini", 
-            client_type="openrouter",
+            model="gpt-4o-mini", 
             temperature=1.9,
             mode="sum"
         )
     
+    total_start_time = time.time()
     asyncio.run(main())
+    total_end_time = time.time()
+    total_elapsed = total_end_time - total_start_time
+    print(f"\n🏁 Total program execution time: {total_elapsed:.2f} seconds")
