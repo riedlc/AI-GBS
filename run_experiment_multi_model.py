@@ -239,14 +239,14 @@ async def main():
 
     ##adding llm params as per professor
     ##as per the original simulation
-    # agents_list = list(range(2, 21))                    # 2 to 20
-    # temp_list = [round(0.1 * i, 1) for i in range(0, 11)]  # 0.0 to 1.0
-    # runs_per_config = 50
+    agents_list = list(range(2, 21))                    # 2 to 20
+    temp_list = [round(0.1 * i, 1) for i in range(0, 11)]  # 0.0 to 1.0
+    runs_per_config = 50
 
     #for single run params
-    agents_list = [2]                   # 2 to 20
-    temp_list = [0.5]
-    runs_per_config = 50
+    # agents_list = [2]                   # 2 to 20
+    # temp_list = [0.5]
+    # runs_per_config = 50
 
 
 
