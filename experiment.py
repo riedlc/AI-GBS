@@ -46,7 +46,19 @@ class Agent:
         
         if round_num == 1:
             # First round: random guess
-            prompt = f"Generate a random integer between {guess_range[0]} and {guess_range[1]}. Respond with only the number."
+            # prompt = f"Generate a random integer between {guess_range[0]} and {guess_range[1]}. Respond with only the number."
+            game_desc = "sum guessing game" if mode == "sum" else "number guessing game"
+            target_desc = "sum to the mystery number" if mode == "sum" else "average to the mystery number"
+            prompt = f"""You are playing a {game_desc}. Your goal is to help your group {target_desc}.
+            Your guess range is {guess_range[0]} to {guess_range[1]}.
+
+            Game History:
+                This is the first round and you have not made any guesses yet.
+            Result: There is no feedback on the group guess yet
+
+            Based on this information, what should your first guess be?
+
+            Respond with only an integer between {guess_range[0]} and {guess_range[1]}."""
         else:
             # Subsequent rounds: use feedback and history
             prompt = self._build_strategic_prompt(game_history, guess_range, mode)
