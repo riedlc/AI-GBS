@@ -3,13 +3,16 @@ from typing import List
 
 class PersonaWrapper:
     
-    def __init__(self, persona_file: str = "personas.txt"):
+    def __init__(self, persona_file: str = "personas_gpt41.txt"):
         self.personas = self._load_personas(persona_file)
         self.agent_personas = {}
     
     def _load_personas(self, file_path: str) -> List[str]:
         with open(file_path, 'r') as f:
-            return [line.strip() for line in f if line.strip()]
+            personas = [line.strip() for line in f if line.strip()]
+        
+        print(f"✅ Loaded {len(personas)} personas from {file_path}")
+        return personas
     
     def assign_personas(self, num_agents: int):
         shuffled_personas = self.personas.copy()
@@ -22,4 +25,6 @@ class PersonaWrapper:
         if agent_id in self.agent_personas:
             persona = self.agent_personas[agent_id]
             return f"{persona}\n\n{original_prompt}"
-        return original_prompt 
+        return original_prompt
+    
+ 
