@@ -1,5 +1,5 @@
 from typing import List, Dict
-from experiment import GameMaster, ParsingError, Agent
+from experiment import GameMaster, ParsingError, Agent, Round
 from persona_wrapper import PersonaWrapper
 from datetime import datetime
 import os
@@ -27,9 +27,10 @@ Game History:
     This is the first round and you have not made any guesses yet.
 Result: There is no feedback on the group guess yet
 
-Based on this information, what should your first guess be?
+What is your guess this round? Carefully think through what others might guess and how your group might find the mystery number.
+How confident are you in your guess?
 
-Respond with only an integer between {guess_range[0]} and {guess_range[1]}."""
+End your answer with: FINAL GUESS: [0-50]"""
         else:
             original_prompt = self._build_strategic_prompt(game_history, guess_range, mode)
         
@@ -44,7 +45,7 @@ Respond with only an integer between {guess_range[0]} and {guess_range[1]}."""
             model=self.model,
             prompt=enhanced_prompt,
             temperature=self.temperature,
-            max_tokens=2
+            max_tokens=200
         )
         
         try:
@@ -55,6 +56,48 @@ Respond with only an integer between {guess_range[0]} and {guess_range[1]}."""
         except Exception as e:
             # For research: let parsing failures propagate naturally
             raise e
+
+    def _build_strategic_prompt(self, game_history: List[Round], guess_range: tuple, mode: str) -> str:
+        """Build prompt with game history for strategic guessing - reasoning version"""
+        
+        game_desc = "sum guessing game" if mode == "sum" else "number guessing game"
+        target_desc = "sum to the mystery number" if mode == "sum" else "average to the mystery number"
+        
+        prompt = f"""You are playing a {game_desc}. Your goal is to help your group {target_desc}.
+Your guess range is {guess_range[0]} to {guess_range[1]}.
+
+Game History:
+"""
+        
+        for round_data in game_history:
+            prompt += f"Round {round_data.round_num}: "
+            prompt += f"Your guess: {round_data.guesses[self.agent_id]}\n"
+            prompt += f"Result: {round_data.feedback}\n\n"
+        
+        prompt += f"""What is your guess this round? Carefully think through what others might guess and how your group might find the mystery number.
+How confident are you in your guess?
+
+End your answer with: FINAL GUESS: [0-50]"""
+        
+        return prompt
+
+    def _extract_number(self, response, guess_range: tuple) -> int:
+        """Extract number from LLM response - uses reasoning prompt extraction"""
+        return self._extract_final_guess(response, guess_range)
+    
+    def _extract_final_guess(self, response, guess_range: tuple) -> int:
+        """Extract final guess using regex pattern FINAL GUESS: [number]"""
+        content = self._get_response_content(response)
+        
+        import re
+        final_guess_match = re.search(r'FINAL GUESS:\s*(\d+)', content, re.IGNORECASE)
+        if final_guess_match:
+            guess = int(final_guess_match.group(1))
+            if guess_range[0] <= guess <= guess_range[1]:
+                return guess
+        
+        # Fall back to existing extraction methods from parent class
+        return super()._extract_number_robust(response, guess_range)
 
 class PersonaGameMaster(GameMaster):
     """GameMaster with persona support - inherits from original GameMaster"""
@@ -269,7 +312,7 @@ async def main():
     # #checking if code works 
     # agents_list = [2,3]
     # temp_list = [0.7]
-    # runs_per_config = 3
+    # runs_per_config = 2
 
     max_rounds = 20
     runs_per_config = 50
@@ -298,7 +341,7 @@ async def main():
     
     # Create batch directory with model name
     batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    batch_folder = f"results/persona_experiment_{model_safe_name}_{batch_timestamp}"
+    batch_folder = f"results/persona+reasoning_experiment_{model_safe_name}_{batch_timestamp}"
     os.makedirs(batch_folder, exist_ok=True)
     
     # Save experiment configuration
