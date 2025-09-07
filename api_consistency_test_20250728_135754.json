@@ -1,0 +1,76 @@
+{
+  "test_info": {
+    "model": "gpt-4o-mini",
+    "temperature": 0.0,
+    "prompt": "Generate a random integer between 1 and 100. Respond with only the number.",
+    "num_calls": 10,
+    "timestamp": "2025-07-28T13:57:54.369655"
+  },
+  "responses": [
+    {
+      "call": 1,
+      "content": "57",
+      "length": 2,
+      "timestamp": "2025-07-28T13:57:37.856790"
+    },
+    {
+      "call": 2,
+      "content": "42",
+      "length": 2,
+      "timestamp": "2025-07-28T13:57:39.364922"
+    },
+    {
+      "call": 3,
+      "content": "42",
+      "length": 2,
+      "timestamp": "2025-07-28T13:57:40.763936"
+    },
+    {
+      "call": 4,
+      "content": "57",
+      "length": 2,
+      "timestamp": "2025-07-28T13:57:43.537080"
+    },
+    {
+      "call": 5,
+      "content": "57",
+      "length": 2,
+      "timestamp": "2025-07-28T13:57:45.379372"
+    },
+    {
+      "call": 6,
+      "content": "57",
+      "length": 2,
+      "timestamp": "2025-07-28T13:57:46.818662"
+    },
+    {
+      "call": 7,
+      "content": "42",
+      "length": 2,
+      "timestamp": "2025-07-28T13:57:48.154834"
+    },
+    {
+      "call": 8,
+      "content": "57",
+      "length": 2,
+      "timestamp": "2025-07-28T13:57:49.900915"
+    },
+    {
+      "call": 9,
+      "content": "42",
+      "length": 2,
+      "timestamp": "2025-07-28T13:57:51.876910"
+    },
+    {
+      "call": 10,
+      "content": "42",
+      "length": 2,
+      "timestamp": "2025-07-28T13:57:53.367449"
+    }
+  ],
+  "analysis": {
+    "total_responses": 10,
+    "unique_responses": 2,
+    "is_deterministic": false
+  }
+}

@@ -1,0 +1,5 @@
+Round 1: guesses=[25, 25], sum=50.0, rounded=50, too LOW 
+Round 2: guesses=[38, 38], sum=76.0, rounded=76, too LOW 
+Round 3: guesses=[5, 44], sum=49.0, rounded=49, too LOW 
+Round 4: guesses=[28, 47], sum=75.0, rounded=75, too LOW 
+Round 5: guesses=[50, 46], sum=96.0, rounded=96, too HIGH 

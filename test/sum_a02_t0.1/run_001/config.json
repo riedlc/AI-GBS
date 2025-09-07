@@ -1,0 +1,27 @@
+{
+  "mystery_number": 79,
+  "mystery_range": [
+    51,
+    100
+  ],
+  "guess_range": [
+    0,
+    50
+  ],
+  "mode": "sum",
+  "temperature": 0.1,
+  "max_rounds": 5,
+  "timestamp": "2025-08-27T21:54:58.483186",
+  "agents": [
+    {
+      "agent_id": 0,
+      "model": "localhost:5001/llama3.1:8b",
+      "client_type": "openai"
+    },
+    {
+      "agent_id": 1,
+      "model": "localhost:5001/llama3.1:8b",
+      "client_type": "openai"
+    }
+  ]
+}

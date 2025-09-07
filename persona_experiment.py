@@ -8,6 +8,7 @@ import json
 import time
 import sys
 from llm_run import chat
+# from reasoning_capture import init_reasoning_capture, capture_reasoning, save_and_display_reasoning
 
 class PersonaAgent(Agent):
     
@@ -20,6 +21,51 @@ class PersonaAgent(Agent):
         if round_num == 1:
             game_desc = "sum guessing game" if mode == "sum" else "number guessing game"
             target_desc = "sum to the mystery number" if mode == "sum" else "average to the mystery number"
+            # OLD VERSION - COMMENTED OUT:
+            # original_prompt = f"""You are playing a {game_desc}. Your goal is to help your group {target_desc}.
+            # Your guess range is {guess_range[0]} to {guess_range[1]}.
+            
+            # Game History:
+            #     This is the first round and you have not made any guesses yet.
+            # Result: There is no feedback on the group guess yet
+            
+            # What is your guess this round? Carefully think through what others might guess and how your group might find the mystery number.
+            # How confident are you in your guess?
+            
+            # End your answer with: FINAL GUESS: [0-50]"""
+            
+            # REVISED VERSION (persona+reasoning2):
+            # original_prompt = f"""You are playing a {game_desc}. Your goal is to help your group {target_desc}.
+            # Your guess range is {guess_range[0]} to {guess_range[1]}.
+            
+            # Game History:
+            #     This is the first round and you have not made any guesses yet.
+            # Result: There is no feedback on the group guess yet
+            
+            # What is your guess this round? Carefully think through step-by-step what others might guess and how the contributions of others contribute to the sum of the group guesses for the mystery number. Take into account the group feedback from previous rounds (too high / too low) and adjust your guess to bring the group closer to the target. Consider what roles other agents might be playing (e.g., guessing higher or lower) and adapt your own adjustment to complement the group.
+            
+            # End your answer with: FINAL GUESS: [0-50]"""
+            
+            # NEW VERSION (persona+reasoning3):
+            # original_prompt = f"""You are playing a {game_desc}. Your goal is to help your group {target_desc}.
+            # Your guess range is {guess_range[0]} to {guess_range[1]}.
+            
+            # Game History:
+            #     This is the first round and you have not made any guesses yet.
+            # Result: There is no feedback on the group guess yet
+            
+            # Instructions:
+            
+            # 1. Step 1: Predict what each other agent is likely to guess this round, based on their past behavior.
+            # 2. Step 2: Identify patterns in how other agents adjust their guesses relative to the group feedback.
+            # 3. Step 3: Determine your own guess that complements others' expected guesses, aiming to bring the group sum as close as possible to the mystery number.
+            # 4. Step 4: Adjust your guess if you think others will over- or under-compensate, using your predictions in Step 1.
+            # 5. Step 5: Explicitly note your reasoning in a "THOUGHT PROCESS" section.
+            # 6. Step 6: State your final guess in the format: FINAL GUESS: [0-50]
+            
+            # You should always think several steps ahead, anticipate other agents' strategies, and adapt to the group feedback while considering your predicted contributions of each agent."""
+            
+            # NEW VERSION (persona+reasoning4):
             original_prompt = f"""You are playing a {game_desc}. Your goal is to help your group {target_desc}.
 Your guess range is {guess_range[0]} to {guess_range[1]}.
 
@@ -27,8 +73,7 @@ Game History:
     This is the first round and you have not made any guesses yet.
 Result: There is no feedback on the group guess yet
 
-What is your guess this round? Carefully think through what others might guess and how your group might find the mystery number.
-How confident are you in your guess?
+What is your guess this round? Always start with the efficient strategy in guessing games which is to use a binary search approach: guessing the midpoint of the current range. Only as a secondary approach, carefully think through step-by-step what others might guess and how the contributions of others contribute to the sum of the group guesses for the mystery number. Always anchor your guess on the group feedback from previous rounds (too high / too low). Consider what roles other agents might be playing (e.g., guessing higher or lower) and adapt your own adjustment to complement the group.
 
 End your answer with: FINAL GUESS: [0-50]"""
         else:
@@ -52,6 +97,11 @@ End your answer with: FINAL GUESS: [0-50]"""
             guess = self._extract_number(response, guess_range)
             self.guess_history.append(guess)
             self.last_successful_guess = guess
+            
+            # Capture reasoning trace
+            # response_text = self._get_response_content(response)
+            # capture_reasoning(round_num, self.agent_id, enhanced_prompt, response_text, guess)
+            
             return guess, enhanced_prompt, response, False
         except Exception as e:
             # For research: let parsing failures propagate naturally
@@ -74,8 +124,31 @@ Game History:
             prompt += f"Your guess: {round_data.guesses[self.agent_id]}\n"
             prompt += f"Result: {round_data.feedback}\n\n"
         
-        prompt += f"""What is your guess this round? Carefully think through what others might guess and how your group might find the mystery number.
-How confident are you in your guess?
+        # OLD VERSION - COMMENTED OUT:
+        # prompt += f"""What is your guess this round? Carefully think through what others might guess and how your group might find the mystery number.
+        # How confident are you in your guess?
+        
+        # End your answer with: FINAL GUESS: [0-50]"""
+        
+        # REVISED VERSION (persona+reasoning2):
+        # prompt += f"""What is your guess this round? Carefully think through step-by-step what others might guess and how the contributions of others contribute to the sum of the group guesses for the mystery number. Take into account the group feedback from previous rounds (too high / too low) and adjust your guess to bring the group closer to the target. Consider what roles other agents might be playing (e.g., guessing higher or lower) and adapt your own adjustment to complement the group.
+        
+        # End your answer with: FINAL GUESS: [0-50]"""
+        
+        # NEW VERSION (persona+reasoning3):
+        # prompt += f"""Instructions:
+        
+        # 1. Step 1: Predict what each other agent is likely to guess this round, based on their past behavior.
+        # 2. Step 2: Identify patterns in how other agents adjust their guesses relative to the group feedback.
+        # 3. Step 3: Determine your own guess that complements others' expected guesses, aiming to bring the group sum as close as possible to the mystery number.
+        # 4. Step 4: Adjust your guess if you think others will over- or under-compensate, using your predictions in Step 1.
+        # 5. Step 5: Explicitly note your reasoning in a "THOUGHT PROCESS" section.
+        # 6. Step 6: State your final guess in the format: FINAL GUESS: [0-50]
+        
+        # You should always think several steps ahead, anticipate other agents' strategies, and adapt to the group feedback while considering your predicted contributions of each agent."""
+        
+        # NEW VERSION (persona+reasoning4):
+        prompt += f"""What is your guess this round? Always start with the efficient strategy in guessing games which is to use a binary search approach: guessing the midpoint of the current range. Only as a secondary approach, carefully think through step-by-step what others might guess and how the contributions of others contribute to the sum of the group guesses for the mystery number. Always anchor your guess on the group feedback from previous rounds (too high / too low). Consider what roles other agents might be playing (e.g., guessing higher or lower) and adapt your own adjustment to complement the group.
 
 End your answer with: FINAL GUESS: [0-50]"""
         
@@ -98,6 +171,17 @@ End your answer with: FINAL GUESS: [0-50]"""
         
         # Fall back to existing extraction methods from parent class
         return super()._extract_number_robust(response, guess_range)
+    
+    def _get_response_content(self, response) -> str:
+        """Extract content from different response formats"""
+        if hasattr(response, 'message'):
+            # Ollama format
+            return response.message.content
+        elif hasattr(response, 'choices'):
+            # OpenAI/OpenRouter format
+            return response.choices[0].message.content
+        else:
+            return str(response)
 
 class PersonaGameMaster(GameMaster):
     """GameMaster with persona support - inherits from original GameMaster"""
@@ -108,6 +192,9 @@ class PersonaGameMaster(GameMaster):
         # Use exact same parameters as original GameMaster
         super().__init__(mode, mystery_range, temperature, max_rounds, num_agents, batch_folder, run_id)
         self.persona_wrapper = persona_wrapper
+        
+        # Initialize reasoning capture
+        # init_reasoning_capture(self.results_dir)
     
     def add_agent(self, model: str) -> PersonaAgent:
         """Add a persona agent to the game"""
@@ -115,6 +202,16 @@ class PersonaGameMaster(GameMaster):
         agent = PersonaAgent(agent_id, model, self.temperature, self.persona_wrapper)
         self.agents.append(agent)
         return agent
+    
+    async def play_game(self) -> List[Round]:
+        """Override to save reasoning traces at the end"""
+        # Call parent method
+        game_history = await super().play_game()
+        
+        # Save reasoning traces
+        # save_and_display_reasoning()
+        
+        return game_history
     
     def _save_config(self):
         config = {
@@ -310,15 +407,16 @@ async def main():
     # runs_per_config = 50
 
     # #checking if code works 
-    # agents_list = [2,3]
-    # temp_list = [0.7]
-    # runs_per_config = 2
-
     max_rounds = 20
-    runs_per_config = 50
-    # agents_list = list(range(11, 11)) # just one experiment with N=10
     agents_list = [10]
     temp_list = [1.0]
+    runs_per_config = 200
+
+    # max_rounds = 40
+    # runs_per_config = 50
+    # # agents_list = list(range(11, 11)) # just one experiment with N=10
+    # agents_list = [10]
+    # temp_list = [1.0]
     
     # ===== BATCHING SETTINGS =====
     batch_size = 20          # Configs per batch
@@ -341,7 +439,11 @@ async def main():
     
     # Create batch directory with model name
     batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    batch_folder = f"results/persona+reasoning_experiment_{model_safe_name}_{batch_timestamp}"
+    batch_folder = f"results/persona+reasoning4_experiment_{model_safe_name}_{batch_timestamp}"
+    # batch_folder = f"results/persona+reasoning3_experiment_{model_safe_name}_{batch_timestamp}"
+    # batch_folder = f"results/persona+reasoning2_experiment_{model_safe_name}_{batch_timestamp}"
+    # batch_folder = f"results/persona+reasoning_experiment_{model_safe_name}_{batch_timestamp}"
+    # batch_folder = f"results/persona_experiment_reasoning_capture_{model_safe_name}_10a_t1.0_r150"
     os.makedirs(batch_folder, exist_ok=True)
     
     # Save experiment configuration

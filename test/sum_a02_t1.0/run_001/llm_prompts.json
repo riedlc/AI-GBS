@@ -1,0 +1,42 @@
+{
+  "capture_rounds": [
+    1,
+    2,
+    5,
+    10,
+    15,
+    20
+  ],
+  "prompts": {
+    "1": {
+      "agent_0": {
+        "prompt": "You are playing a sum guessing game. Your goal is to help your group sum to the mystery number.\nYour guess range is 0 to 50.\n\nGame History:\n    This is the first round and you have not made any guesses yet.\nResult: There is no feedback on the group guess yet\n\nWhat is your guess this round? Always start with the efficient strategy in guessing games which is to use a binary search approach: guessing the midpoint of the current range. Always anchor your guess on the group feedback from previous rounds (too high / too low).\n\nEnd your answer with: FINAL GUESS: [0-50]",
+        "timestamp": "2025-08-27T21:44:34.309156"
+      },
+      "agent_1": {
+        "prompt": "You are playing a sum guessing game. Your goal is to help your group sum to the mystery number.\nYour guess range is 0 to 50.\n\nGame History:\n    This is the first round and you have not made any guesses yet.\nResult: There is no feedback on the group guess yet\n\nWhat is your guess this round? Always start with the efficient strategy in guessing games which is to use a binary search approach: guessing the midpoint of the current range. Always anchor your guess on the group feedback from previous rounds (too high / too low).\n\nEnd your answer with: FINAL GUESS: [0-50]",
+        "timestamp": "2025-08-27T21:44:34.309200"
+      }
+    },
+    "2": {
+      "agent_0": {
+        "prompt": "You are playing a sum guessing game. Your goal is to help your group sum to the mystery number.\nYour guess range is 0 to 50.\n\nGame History:\nRound 1: Your guess: 25\nResult: too LOW \n\nWhat is your guess this round? Always start with the efficient strategy in guessing games which is to use a binary search approach: guessing the midpoint of the current range. Always anchor your guess on the group feedback from previous rounds (too high / too low).\n\nEnd your answer with: FINAL GUESS: [0-50]",
+        "timestamp": "2025-08-27T21:44:34.857225"
+      },
+      "agent_1": {
+        "prompt": "You are playing a sum guessing game. Your goal is to help your group sum to the mystery number.\nYour guess range is 0 to 50.\n\nGame History:\nRound 1: Your guess: 25\nResult: too LOW \n\nWhat is your guess this round? Always start with the efficient strategy in guessing games which is to use a binary search approach: guessing the midpoint of the current range. Always anchor your guess on the group feedback from previous rounds (too high / too low).\n\nEnd your answer with: FINAL GUESS: [0-50]",
+        "timestamp": "2025-08-27T21:44:34.857263"
+      }
+    },
+    "5": {
+      "agent_0": {
+        "prompt": "You are playing a sum guessing game. Your goal is to help your group sum to the mystery number.\nYour guess range is 0 to 50.\n\nGame History:\nRound 1: Your guess: 25\nResult: too LOW \n\nRound 2: Your guess: 38\nResult: too LOW \n\nRound 3: Your guess: 5\nResult: too LOW \n\nRound 4: Your guess: 28\nResult: too LOW \n\nWhat is your guess this round? Always start with the efficient strategy in guessing games which is to use a binary search approach: guessing the midpoint of the current range. Always anchor your guess on the group feedback from previous rounds (too high / too low).\n\nEnd your answer with: FINAL GUESS: [0-50]",
+        "timestamp": "2025-08-27T21:44:38.277311"
+      },
+      "agent_1": {
+        "prompt": "You are playing a sum guessing game. Your goal is to help your group sum to the mystery number.\nYour guess range is 0 to 50.\n\nGame History:\nRound 1: Your guess: 25\nResult: too LOW \n\nRound 2: Your guess: 38\nResult: too LOW \n\nRound 3: Your guess: 44\nResult: too LOW \n\nRound 4: Your guess: 47\nResult: too LOW \n\nWhat is your guess this round? Always start with the efficient strategy in guessing games which is to use a binary search approach: guessing the midpoint of the current range. Always anchor your guess on the group feedback from previous rounds (too high / too low).\n\nEnd your answer with: FINAL GUESS: [0-50]",
+        "timestamp": "2025-08-27T21:44:38.277381"
+      }
+    }
+  }
+}

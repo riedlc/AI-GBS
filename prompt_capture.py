@@ -27,6 +27,8 @@ class PromptCapture:
     
     def save_prompts(self):
         """Save captured prompts to file"""
+        print(f"💾 Saving prompts to: {self.prompts_file}")
+        print(f"📊 Captured rounds: {list(self.prompts_data['prompts'].keys())}")
         with open(self.prompts_file, 'w') as f:
             json.dump(self.prompts_data, f, indent=2)
         print(f"📝 LLM prompts captured: {self.prompts_file}")
@@ -49,9 +51,13 @@ def capture_prompt(round_num: int, agent_id: int, prompt: str):
     global _prompt_capture
     if _prompt_capture:
         _prompt_capture.capture_prompt(round_num, agent_id, prompt)
+    else:
+        print(f"⚠️  Prompt capture not initialized! Round {round_num}, Agent {agent_id}")
 
 def save_and_display_prompts():
     """Save captured prompts to file only"""
     global _prompt_capture
     if _prompt_capture:
-        _prompt_capture.save_prompts() 
+        _prompt_capture.save_prompts()
+    else:
+        print("⚠️  No prompt capture instance to save!") 

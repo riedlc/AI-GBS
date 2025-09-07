@@ -1,0 +1,19 @@
+{
+  "round_num": 3,
+  "guesses": {
+    "0": 5,
+    "1": 44
+  },
+  "average": 49,
+  "rounded_average": 49,
+  "feedback": "too LOW ",
+  "mystery_number": 88,
+  "mode": "sum",
+  "prompts_used": {
+    "0": "You are playing a sum guessing game. Your goal is to help your group sum to the mystery number.\nYour guess range is 0 to 50.\n\nGame History:\nRound 1: Your guess: 25\nResult: too LOW \n\nRound 2: Your guess: 38\nResult: too LOW \n\nWhat is your guess this round? Always start with the efficient strategy in guessing games which is to use a binary search approach: guessing the midpoint of the current range. Always anchor your guess on the group feedback from previous rounds (too high / too low).\n\nEnd your answer with: FINAL GUESS: [0-50]",
+    "1": "You are playing a sum guessing game. Your goal is to help your group sum to the mystery number.\nYour guess range is 0 to 50.\n\nGame History:\nRound 1: Your guess: 25\nResult: too LOW \n\nRound 2: Your guess: 38\nResult: too LOW \n\nWhat is your guess this round? Always start with the efficient strategy in guessing games which is to use a binary search approach: guessing the midpoint of the current range. Always anchor your guess on the group feedback from previous rounds (too high / too low).\n\nEnd your answer with: FINAL GUESS: [0-50]"
+  },
+  "api_response_ids": null,
+  "parsing_failures": null,
+  "fallback_responses": null
+}

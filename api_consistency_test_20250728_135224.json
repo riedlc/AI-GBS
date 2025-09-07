@@ -1,0 +1,46 @@
+{
+  "test_info": {
+    "model": "gpt-4o-mini",
+    "temperature": 0.0,
+    "prompt": "Generate a random integer between 1 and 100. Respond with only the number.",
+    "num_calls": 5,
+    "timestamp": "2025-07-28T13:52:24.584961"
+  },
+  "responses": [
+    {
+      "call": 1,
+      "content": "57",
+      "length": 2,
+      "timestamp": "2025-07-28T13:52:16.262411"
+    },
+    {
+      "call": 2,
+      "content": "42",
+      "length": 2,
+      "timestamp": "2025-07-28T13:52:18.112225"
+    },
+    {
+      "call": 3,
+      "content": "42",
+      "length": 2,
+      "timestamp": "2025-07-28T13:52:19.428172"
+    },
+    {
+      "call": 4,
+      "content": "57",
+      "length": 2,
+      "timestamp": "2025-07-28T13:52:21.259692"
+    },
+    {
+      "call": 5,
+      "content": "42",
+      "length": 2,
+      "timestamp": "2025-07-28T13:52:23.582732"
+    }
+  ],
+  "analysis": {
+    "total_responses": 5,
+    "unique_responses": 2,
+    "is_deterministic": false
+  }
+}

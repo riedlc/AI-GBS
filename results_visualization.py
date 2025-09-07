@@ -122,17 +122,17 @@ def create_plots(results, base_path):
     
     # Check if we have any non-zero data for 3D plots
     if np.any(converged_props) or np.any(not_converged_props) or np.any(parsing_failure_props):
-        bottom = np.zeros_like(temp_mesh)
-        ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
-                  0.08, 0.8, converged_props.ravel(), color='green', alpha=0.8, label='Converged')
-        
-        bottom += converged_props
-        ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
-                  0.08, 0.8, not_converged_props.ravel(), color='orange', alpha=0.8, label='Not Converged')
-        
-        bottom += not_converged_props
-        ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
-                  0.08, 0.8, parsing_failure_props.ravel(), color='red', alpha=0.8, label='Parsing Failure')
+    bottom = np.zeros_like(temp_mesh)
+    ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
+              0.08, 0.8, converged_props.ravel(), color='green', alpha=0.8, label='Converged')
+    
+    bottom += converged_props
+    ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
+              0.08, 0.8, not_converged_props.ravel(), color='orange', alpha=0.8, label='Not Converged')
+    
+    bottom += not_converged_props
+    ax1.bar3d(temp_mesh.ravel(), agents_mesh.ravel(), bottom.ravel(),
+              0.08, 0.8, parsing_failure_props.ravel(), color='red', alpha=0.8, label='Parsing Failure')
     
     ax1.set_xlabel('Temperature')
     ax1.set_ylabel('Agents')
@@ -347,5 +347,5 @@ if not os.path.exists(base_path):
     print(f"Path not found: {base_path}")
     print("Please update the base_path variable to point to your results directory")
 else:
-    results = collect_results(base_path)
-    create_plots(results, base_path)
+results = collect_results(base_path)
+create_plots(results, base_path)
