@@ -30,8 +30,8 @@ async def get_http_session():
     return _http_session
 
 async def chat_ollama(model_name, prompt, system_prompt=None, temperature=0.0, max_tokens=None):
-    """Chat with Ollama models via localhost:11434"""
-    url = "http://localhost:11434/api/generate"
+    """Chat with Ollama models via localhost:5001"""
+    url = "http://localhost:5001/api/generate"
     
     # Build messages
     messages = []
@@ -78,7 +78,7 @@ async def chat_localhost(model_name, prompt, system_prompt=None, temperature=0.0
         url = f"http://localhost:{port}/api/generate"
         model_name = model_name.split("/")[-1]  # Extract just the model name
     else:
-        url = f"http://localhost:5000/api/generate"
+        url = f"http://localhost:5001/api/generate"
     
     # Build the full prompt with system message if provided
     full_prompt = prompt

@@ -261,6 +261,20 @@ def save_progress(batch_folder, batch_num, batch_results, total_batches):
     
     return progress
 
+def save_interruption_state(batch_folder, current_batch, total_batches):
+    """Save the current batch number when interrupted"""
+    interruption_file = os.path.join(batch_folder, "interruption_state.json")
+    interruption_state = {
+        "interrupted_at_batch": current_batch,
+        "total_batches": total_batches,
+        "interruption_time": time.time()
+    }
+    
+    with open(interruption_file, 'w') as f:
+        json.dump(interruption_state, f, indent=2)
+    
+    return interruption_state
+
 def load_progress(batch_folder):
     """Load existing progress from file"""
     progress_file = os.path.join(batch_folder, "progress.json")
@@ -268,6 +282,35 @@ def load_progress(batch_folder):
         with open(progress_file, 'r') as f:
             return json.load(f)
     return None
+
+def load_interruption_state(batch_folder):
+    """Load interruption state from file"""
+    interruption_file = os.path.join(batch_folder, "interruption_state.json")
+    if os.path.exists(interruption_file):
+        with open(interruption_file, 'r') as f:
+            return json.load(f)
+    return None
+
+def cleanup_failed_runs(batch_folder, mode, agents_list, temp_list, intervention_types):
+    """Clean up failed runs that don't have summary.json files"""
+    cleaned_runs = 0
+    for agents in agents_list:
+        for temp in temp_list:
+            for intervention_type in intervention_types:
+                config_dir = f"{mode}_a{agents}_t{temp:.1f}_{intervention_type}"
+                config_path = os.path.join(batch_folder, config_dir)
+                if os.path.exists(config_path):
+                    for d in os.listdir(config_path):
+                        if d.startswith('run_'):
+                            run_path = os.path.join(config_path, d)
+                            summary_file = os.path.join(run_path, "summary.json")
+                            if not os.path.exists(summary_file):
+                                # This run failed, clean it up
+                                import shutil
+                                shutil.rmtree(run_path)
+                                cleaned_runs += 1
+                                print(f"🧹 Cleaned up failed run: {d}")
+    return cleaned_runs
 
 def find_latest_experiment_folder(intervention_type, model_safe_name):
     """Find the most recent experiment folder with progress for the given intervention and model"""
@@ -424,14 +467,14 @@ async def main():
     max_rounds = 30
     agents_list = [10]
     temp_list = [1.0]
-    runs_per_config = 220
+    runs_per_config = 50
     intervention_types = [intervention_type]  # Only the specified intervention
     
     # ===== BATCHING SETTINGS =====
     batch_size = 2          # Configs per batch
-    max_concurrent = 1      # Max concurrent configs within each batch
+    max_concurrent = 15      # Max concurrent configs within each batch
     resume_from_batch = None # Set to batch number to resume from, or None for auto-resume
-    force_fresh_start = True # Set to True to force a fresh start (ignore existing experiments)
+    force_fresh_start = False # Set to True to force a fresh start (ignore existing experiments)
 
 
     # To resume: set resume_from_batch = <batch_number> (e.g., resume_from_batch = 5)
@@ -521,31 +564,167 @@ async def main():
     
     # Determine start batch based on existing progress
     start_batch = 1
+    existing_runs = set()
+    successful_runs = set()
     
-    if existing_progress:
+    # Check for interruption state first (highest priority)
+    interruption_state = load_interruption_state(batch_folder)
+    if interruption_state and not resume_from_batch:
+        start_batch = interruption_state["interrupted_at_batch"]
+        print(f"🔄 Auto-resuming from interruption at batch {start_batch}")
+        # Clean up any failed runs before resuming
+        cleaned = cleanup_failed_runs(batch_folder, mode, agents_list, temp_list, intervention_types)
+        if cleaned > 0:
+            print(f"🧹 Cleaned up {cleaned} failed runs")
+        # Skip all other resume logic if we have an interruption state
+        existing_progress = None
+    
+    # Process existing progress if we have it and no interruption state
+    if existing_progress and not interruption_state:
         completed_batches = len(existing_progress["batches_completed"])
         
-        if resume_from_batch:
-            # Manual resume from specific batch
-            if resume_from_batch <= completed_batches:
-                print(f"⚠️  Warning: Batch {resume_from_batch} already completed. Starting from next batch.")
-                start_batch = completed_batches + 1
+        # Validate progress data consistency
+        if existing_progress.get("total_batches", 0) != total_batches:
+            print(f"⚠️  Progress data mismatch: expected {total_batches} batches, found {existing_progress.get('total_batches', 0)}")
+            print(f"🔄 Ignoring corrupted progress data and starting fresh")
+            existing_progress = None
+        elif completed_batches > total_batches:
+            print(f"⚠️  Progress data corruption: {completed_batches} completed batches > {total_batches} total batches")
+            print(f"🔄 Ignoring corrupted progress data and starting fresh")
+            existing_progress = None
+        elif completed_batches == total_batches:
+            # All batches are marked as completed, but let's check if they were actually successful
+            # First check if any run directories actually exist
+            has_any_runs = False
+            for agents in agents_list:
+                for temp in temp_list:
+                    for intervention_type in intervention_types:
+                        config_dir = f"{mode}_a{agents}_t{temp:.1f}_{intervention_type}"
+                        config_path = os.path.join(batch_folder, config_dir)
+                        if os.path.exists(config_path) and os.listdir(config_path):
+                            has_any_runs = True
+                            break
+                    if has_any_runs:
+                        break
+                if has_any_runs:
+                    break
+            
+            if not has_any_runs:
+                print(f"⚠️  Progress shows {completed_batches} batches completed but no run directories exist")
+                print(f"🔄 Progress data is invalid, starting fresh")
+                existing_progress = None
             else:
-                start_batch = resume_from_batch
-            print(f"🔄 Manual resume from batch {start_batch}")
+                # Clean up failed runs first to get accurate count
+                cleaned = cleanup_failed_runs(batch_folder, mode, agents_list, temp_list, intervention_types)
+                if cleaned > 0:
+                    print(f"🧹 Cleaned up {cleaned} failed runs")
+                    # Reset progress since we cleaned up failed runs
+                    existing_progress = None
+                    print(f"🔄 All previous runs were failed, starting fresh")
+    
+    # Process existing progress if we still have it after validation
+    if existing_progress and not interruption_state:
+        completed_batches = len(existing_progress["batches_completed"])
+        
+        # Clean up any failed runs first
+        cleaned = cleanup_failed_runs(batch_folder, mode, agents_list, temp_list, intervention_types)
+        if cleaned > 0:
+            print(f"🧹 Cleaned up {cleaned} failed runs")
+        
+        # Check for existing run directories to determine what's actually completed
+        for agents in agents_list:
+            for temp in temp_list:
+                for intervention_type in intervention_types:
+                    config_dir = f"{mode}_a{agents}_t{temp:.1f}_{intervention_type}"
+                    config_path = os.path.join(batch_folder, config_dir)
+                    if os.path.exists(config_path):
+                        for d in os.listdir(config_path):
+                            if d.startswith('run_'):
+                                try:
+                                    run_id = int(d.split('_')[1])
+                                    existing_runs.add(run_id)
+                                except (ValueError, IndexError):
+                                    continue
+        
+        print(f"🔍 Found {len(existing_runs)} existing runs")
+        
+        if existing_runs:
+            # Check if the existing runs are actually successful (not just failed runs)
+            for agents in agents_list:
+                for temp in temp_list:
+                    for intervention_type in intervention_types:
+                        config_dir = f"{mode}_a{agents}_t{temp:.1f}_{intervention_type}"
+                        config_path = os.path.join(batch_folder, config_dir)
+                        if os.path.exists(config_path):
+                            for d in os.listdir(config_path):
+                                if d.startswith('run_'):
+                                    try:
+                                        run_id = int(d.split('_')[1])
+                                        # Check if this run has a summary.json (indicates successful completion)
+                                        summary_file = os.path.join(config_path, d, "summary.json")
+                                        if os.path.exists(summary_file):
+                                            successful_runs.add(run_id)
+                                    except (ValueError, IndexError):
+                                        continue
+            
+            print(f"🔍 Found {len(existing_runs)} existing runs, {len(successful_runs)} successful runs")
+            
+            # Find the first missing successful run
+            first_missing = None
+            for run_id in range(1, runs_per_config + 1):
+                if run_id not in successful_runs:
+                    first_missing = run_id
+                    break
+            
+            if first_missing:
+                print(f"🔍 First missing successful run: {first_missing}")
+                # Calculate which batch this run belongs to
+                # Each batch has batch_size configs, and we need to find which batch contains this run
+                configs_per_batch = batch_size
+                total_configs_per_intervention = len(agents_list) * len(temp_list) * runs_per_config
+                
+                # Find which batch contains the missing run
+                for batch_idx, batch_configs in enumerate(config_batches):
+                    batch_run_ids = [config[2] for config in batch_configs]  # run_id is at index 2
+                    if first_missing in batch_run_ids:
+                        start_batch = batch_idx + 1
+                        print(f"🔄 Continuing from batch {start_batch} (contains run {first_missing})")
+                        break
+                else:
+                    # If we can't find the batch, start from the next incomplete batch
+                    start_batch = completed_batches + 1
+                    print(f"🔄 Starting from next incomplete batch {start_batch}")
+            else:
+                print(f"✅ All runs completed successfully!")
+                return
         else:
-            # Automatic resume from last completed batch + 1
+            # No existing runs found, but we have progress - start from next batch
             if completed_batches < total_batches:
                 start_batch = completed_batches + 1
-                print(f"🔄 Auto-resume from batch {start_batch} (last completed: {completed_batches})")
+                print(f"🔄 No existing runs found, starting from batch {start_batch}")
             else:
-                print(f"✅ All batches already completed!")
+                print(f"✅ All batches completed!")
                 return
         
         # Show progress summary
         total_completed_configs = sum(batch["total_configs"] for batch in existing_progress["batches_completed"])
         print(f"📊 Progress: {completed_batches}/{total_batches} batches completed ({total_completed_configs} configs)")
-    else:
+    
+    # Handle manual resume override
+    if resume_from_batch:
+        if existing_progress:
+            completed_batches = len(existing_progress["batches_completed"])
+            if resume_from_batch <= completed_batches:
+                print(f"⚠️  Warning: Batch {resume_from_batch} already completed. Starting from next batch.")
+                start_batch = completed_batches + 1
+            else:
+                start_batch = resume_from_batch
+        else:
+            start_batch = resume_from_batch
+        print(f"🔄 Manual resume from batch {start_batch}")
+    
+    # If no existing progress and no interruption state, start fresh
+    if not existing_progress and not interruption_state:
         print(f"🆕 No existing progress found. Starting fresh from batch 1.")
     
     # Run batches sequentially
@@ -572,10 +751,14 @@ async def main():
             
         except KeyboardInterrupt:
             print(f"\n🛑 Interrupted at batch {batch_num}")
+            # Save interruption state for automatic resume
+            save_interruption_state(batch_folder, batch_num, total_batches)
             print(f"💾 Progress saved. To resume:")
-            print(f"   1. Edit line 386: resume_from_batch = {batch_num}")
-            print(f"   2. Run the experiment again")
+            print(f"   1. The experiment will automatically resume from batch {batch_num} next time")
+            print(f"   2. Or manually set: resume_from_batch = {batch_num}")
+            print(f"   3. Run the experiment again")
             print(f"   📁 Progress file: {os.path.join(batch_folder, 'progress.json')}")
+            print(f"   📁 Interruption state: {os.path.join(batch_folder, 'interruption_state.json')}")
             break
         except Exception as e:
             print(f"❌ Error in batch {batch_num}: {e}")
@@ -593,6 +776,12 @@ async def main():
         
         # Generate parsing failure analysis
         failure_analysis = save_failure_summary(batch_folder, final_progress)
+        
+        # Clean up interruption state if experiment completed successfully
+        interruption_file = os.path.join(batch_folder, "interruption_state.json")
+        if os.path.exists(interruption_file):
+            os.remove(interruption_file)
+            print(f"🧹 Cleaned up interruption state file")
         
         print(f"\n🎉 EXPERIMENT COMPLETED!")
         print(f"🤖 Model: {model}")
