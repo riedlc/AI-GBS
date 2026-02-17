@@ -1,8 +1,13 @@
-# Emergent coordination in multi-agent language models
+# Emergent coordination in multi-agent language models (ICLR'26)
 
-Official implementation of the paper: 
+Official implementation of the paper.
 
-> Riedl, C. (2026). Emergent coordination in multi-agent language models. ICLR'26 (accepted)
+## Citation
+
+If you use this repository or build on our work, please cite:
+
+> Riedl, C. (2026). **Emergent coordination in multi-agent language models.**
+> *International Conference on Learning Representations*
 
 ```bibtex
 @inproceedings{riedl2026multi,
@@ -10,7 +15,7 @@ Official implementation of the paper:
   author    = {Riedl, C.},
   booktitle = {International Conference on Learning Representations},
   year      = {2026},
-  url={[https://openreview.net/forum?id=XXXX](https://arxiv.org/abs/2510.05174)}
+  url={https://arxiv.org/abs/2510.05174}
 }
 ```
 
