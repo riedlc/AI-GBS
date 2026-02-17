@@ -9,10 +9,10 @@ Official implementation of the paper
 ```bibtex
 @inproceedings{riedl2026multi,
   title     = {Emergent coordination in multi-agent language models},
-  author    = {Riedl, C.},
+  author    = {Riedl, Christoph},
   booktitle = {International Conference on Learning Representations},
   year      = {2026},
-  url={https://arxiv.org/abs/2510.05174}
+  url       = {https://arxiv.org/abs/2510.05174}
 }
 ```
 
