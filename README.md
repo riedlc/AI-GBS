@@ -3,7 +3,7 @@
 Official implementation of the paper
 
 > Riedl, C. (2026). **Emergent coordination in multi-agent language models.**
-> *International Conference on Learning Representations*
+> *International Conference on Learning Representations*.
 
 
 ```bibtex
