@@ -15,9 +15,12 @@ _openrouter_client = None
 async def get_openai_client():
     global _openai_client
     if _openai_client is None:
-        _openai_client = AsyncOpenAI(
-            api_key="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",
-        )
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "OPENAI_API_KEY is not set. Set it for OpenAI models, or use openrouter/<model> for OpenRouter."
+            )
+        _openai_client = AsyncOpenAI(api_key=api_key)
     return _openai_client
 
 async def get_http_session():
