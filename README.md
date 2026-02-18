@@ -1,10 +1,24 @@
-# AI Multi-Agent Number Guessing Game
+# Emergent coordination in multi-agent language models (ICLR'26)
 
-A distributed research platform for studying collective intelligence in AI agents through a number guessing game. This project implements and extends the experimental paradigm from Roberts & Goldstone (2011) using modern AI models.
+Official implementation of the paper
+
+> Riedl, C. (2026). **Emergent coordination in multi-agent language models.**
+> *International Conference on Learning Representations*.
+
+
+```bibtex
+@inproceedings{riedl2026multi,
+  title     = {Emergent coordination in multi-agent language models},
+  author    = {Riedl, Christoph},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2026},
+  url       = {https://arxiv.org/abs/2510.05174}
+}
+```
 
 ## 🎯 Research Background
 
-This project investigates how groups of AI agents can collectively solve problems through iterative feedback. The experiment is based on the "collective intelligence" paradigm where multiple agents must coordinate their guesses to reach a target number.
+This project investigates how groups of AI agents can collectively solve problems through iterative feedback. The experiment is based on the "collective intelligence" paradigm where multiple agents must coordinate their guesses to reach a target number. In particular, our paper analyzes the group guessing data using information theory (TDMI and information decomposition) to test if multi-agent LLM systems have the capacity for emergent synergy.
 
 ### Game Mechanics
 - **Sum Mode**: Agents try to make their individual guesses sum to a mystery number
@@ -189,5 +203,3 @@ python run_experiment_multi_model.py "gpt-3.5-turbo"
 - `llm_run.py`: API client with retry logic
 - `results_visualization.py`: Data analysis and plotting
 - `prompt_capture.py`: LLM prompt logging system
-
-

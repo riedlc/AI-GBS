@@ -142,7 +142,7 @@ class Agent:
     
     def _extract_last_number(self, response, guess_range: tuple) -> int:
         """Extract the last number from response"""
-        content = self._get_response_content(response)
+        content = self._get_response_content(response) or ""
         numbers = re.findall(r'\d+', content.strip())
         if numbers:
             guess = int(numbers[-1])
@@ -152,7 +152,7 @@ class Agent:
     
     def _extract_first_number(self, response, guess_range: tuple) -> int:
         """Extract the first number from response"""
-        content = self._get_response_content(response)
+        content = self._get_response_content(response) or ""
         numbers = re.findall(r'\d+', content.strip())
         if numbers:
             guess = int(numbers[0])
@@ -162,7 +162,7 @@ class Agent:
     
     def _extract_any_number(self, response, guess_range: tuple) -> int:
         """Extract any number from response, even if outside range"""
-        content = self._get_response_content(response)
+        content = self._get_response_content(response) or ""
         numbers = re.findall(r'\d+', content.strip())
         if numbers:
             guess = int(numbers[0])
@@ -176,15 +176,24 @@ class Agent:
         return (guess_range[0] + guess_range[1]) // 2
     
     def _get_response_content(self, response) -> str:
-        """Extract content from different response formats"""
-        if hasattr(response, 'message'):
-            # Ollama format
-            return response.message.content
-        elif hasattr(response, 'choices'):
-            # OpenAI/OpenRouter format
-            return response.choices[0].message.content
-        else:
-            return str(response)
+        """Extract content from different response formats, never returning None."""
+        try:
+            if hasattr(response, 'message'):
+                # Ollama format
+                content = getattr(response.message, "content", None)
+                if content:
+                    return content
+            if hasattr(response, 'choices') and response.choices:
+                # OpenAI / OpenRouter / vLLM (OpenAI-compatible) format
+                msg = getattr(response.choices[0], "message", None)
+                content = getattr(msg, "content", None) if msg is not None else None
+                if content:
+                    return content
+        except Exception:
+            # Fall back to string conversion below
+            pass
+        # Ultimate fallback – safe string representation
+        return str(response)
 
 class GameMaster:
     """Orchestrates the number guessing game"""

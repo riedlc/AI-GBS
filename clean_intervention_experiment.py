@@ -15,6 +15,7 @@ from reasoning_capture import (
 )
 import asyncio
 import re
+import socket
 from prompt_capture import capture_prompt
 from persona_wrapper import PersonaWrapper
 from experiment import GameMaster, ParsingError, Agent, Round
@@ -71,6 +72,24 @@ End your answer with: FINAL GUESS: [0-50]"""
                     "End your answer with: FINAL GUESS: [0-50]",
                     f"{tom4_text}End your answer with: FINAL GUESS: [0-50]"
                 )
+        elif self.intervention_type == "reasoning4":
+            # Add reasoning only (no persona) - same reasoning text as tom4
+            enhanced_prompt = original_prompt
+            reasoning4_text = "Only as a secondary approach, carefully think through step-by-step what others might guess and how the contributions of others contribute to the sum of the group guesses for the mystery number. Consider what roles other agents might be playing (e.g., guessing higher or lower) and adapt your own adjustment to complement the group. "
+            
+            # More robust replacement - insert before the target sentence
+            target_sentence = "Always anchor your guess on the group feedback from previous rounds (too high / too low)."
+            if target_sentence in enhanced_prompt:
+                enhanced_prompt = enhanced_prompt.replace(
+                    target_sentence,
+                    f"{reasoning4_text}{target_sentence}"
+                )
+            else:
+                # Fallback: append to the end if target sentence not found
+                enhanced_prompt = enhanced_prompt.replace(
+                    "End your answer with: FINAL GUESS: [0-50]",
+                    f"{reasoning4_text}End your answer with: FINAL GUESS: [0-50]"
+                )
         else:
             raise ValueError(f"Unknown intervention type: {self.intervention_type}")
         
@@ -124,13 +143,17 @@ End your answer with: FINAL GUESS: [0-50]"""
         return prompt
 
     def _get_response_content(self, response) -> str:
-        # Handle OpenAI-like and our Localhost/Ollama adapters
+        """Extract content from response; never return None (vLLM/OpenAI can have message.content null)."""
         try:
             if hasattr(response, "choices") and response.choices:
                 msg = getattr(response.choices[0], "message", None)
-                if msg and hasattr(msg, "content"):
-                    return msg.content
-            # Fallback to str
+                content = getattr(msg, "content", None) if msg else None
+                if content is not None:
+                    return content
+            if hasattr(response, "message"):
+                content = getattr(response.message, "content", None)
+                if content is not None:
+                    return content
             return str(response)
         except Exception:
             return str(response)
@@ -141,9 +164,17 @@ class CleanInterventionGameMaster(GameMaster):
     def __init__(self, mode: str = "sum", mystery_range: tuple = None, temperature: float = 0.7, 
                  max_rounds: int = 20, num_agents: int = None, batch_folder: str = None, run_id: int = 1,
                  intervention_type: str = "plain4"):
+        # Override results_dir to include intervention_type before calling super()
+        # Store intervention_type first so we can use it in results_dir override
+        self.intervention_type = intervention_type
         super().__init__(mode=mode, mystery_range=mystery_range, temperature=temperature, 
                         max_rounds=max_rounds, num_agents=num_agents, batch_folder=batch_folder, run_id=run_id)
-        self.intervention_type = intervention_type
+        # Override results_dir to include intervention_type
+        if batch_folder:
+            config_name = f"{mode}_a{num_agents:02d}_t{temperature:.1f}_{intervention_type}"
+            run_folder = f"run_{run_id:03d}"
+            self.results_dir = f"{batch_folder}/{config_name}/{run_folder}"
+            os.makedirs(self.results_dir, exist_ok=True)
         
         # Setup persona wrapper if needed for Persona4 and ToM4
         if intervention_type in ["persona4", "tom4"]:
@@ -260,6 +291,16 @@ def save_progress(batch_folder, batch_num, batch_results, total_batches):
         json.dump(progress, f, indent=2)
     
     return progress
+
+def save_last_error(batch_folder, error_message, traceback_str=None):
+    """Write last error to batch_folder so you can inspect after a crash."""
+    path = os.path.join(batch_folder, "last_error.txt")
+    with open(path, "w") as f:
+        f.write(error_message)
+        if traceback_str:
+            f.write("\n\n--- traceback ---\n")
+            f.write(traceback_str)
+    return path
 
 def save_interruption_state(batch_folder, current_batch, total_batches):
     """Save the current batch number when interrupted"""
@@ -435,25 +476,52 @@ async def main():
     """Main function for clean intervention experiments"""
     if len(sys.argv) < 2:
         print("Usage: python clean_intervention_experiment.py <model_name> [intervention_type]")
-        print("Example: python clean_intervention_experiment.py 'openai/gpt-4o-mini'")
         print("Example: python clean_intervention_experiment.py 'openai/gpt-4o-mini' plain4")
         print("Example: python clean_intervention_experiment.py 'openai/gpt-4o-mini' persona4")
         print("Example: python clean_intervention_experiment.py 'openai/gpt-4o-mini' tom4")
-        print("\nAvailable interventions:")
-        print("  plain4  - Clean base prompt (no enhancements)")
-        print("  persona4 - Clean base prompt + persona only")
-        print("  tom4    - Clean base prompt + persona + ToM reasoning")
+        print("Example: python clean_intervention_experiment.py 'openai/gpt-4o-mini' reasoning4")
+        print("Example: python clean_intervention_experiment.py 'openai/gpt-4o-mini' all  # Run all 4 types")
+        print("Example: python clean_intervention_experiment.py 'openai/gpt-4o-mini' plain4,persona4  # Run specific types")
+        print("\nvLLM / TensorRT-LLM (OpenAI-compatible):")
+        print("  Use localhost:<port>/<model-id> (client uses /v1/chat/completions).")
+        print("  From laptop: open an SSH tunnel first (keep in a separate terminal):")
+        print("    ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -L 9000:localhost:9000 USER@SERVER")
+        print("  Then on the laptop run (use the same port as in -L):")
+        print("    python clean_intervention_experiment.py 'localhost:9000/<model-id>' plain4")
+        print("  On the server (same machine as container): use the host-mapped port (e.g. 9000):")
+        print("    python clean_intervention_experiment.py 'localhost:9000/<model-id>' plain4")
+        print("  Replace USER@SERVER and <model-id> with your SSH target and vLLM model name (e.g. Qwen/Qwen2.5-30B-Instruct).")
+        print("\nOpenRouter (no local server; set OPENROUTER_API_KEY):")
+        print("  export OPENROUTER_API_KEY=sk-or-...   # get key at https://openrouter.ai/keys")
+        print("  python clean_intervention_experiment.py 'openrouter/qwen/qwen-2.5-72b-instruct' plain4")
+        print("  Use any OpenRouter model id, e.g. openrouter/meta-llama/llama-3.1-70b-instruct")
+        print("\nAvailable interventions (all 4 combinations):")
+        print("  plain4     - Clean base prompt (no persona, no reasoning)")
+        print("  persona4   - Clean base prompt + persona only (persona yes, reasoning no)")
+        print("  reasoning4 - Clean base prompt + reasoning only (persona no, reasoning yes)")
+        print("  tom4       - Clean base prompt + persona + reasoning (persona yes, reasoning yes)")
         sys.exit(1)
     
     model = sys.argv[1]
-    intervention_type = sys.argv[2] if len(sys.argv) > 2 else "plain4"
+    intervention_arg = sys.argv[2] if len(sys.argv) > 2 else "plain4"
     client_type = "openai"  # Default client type
     
-    # Validate intervention type
-    if intervention_type not in ["plain4", "persona4", "tom4"]:
-        print(f"❌ Invalid intervention type: {intervention_type}")
-        print("Available types: plain4, persona4, tom4")
-        sys.exit(1)
+    # Parse intervention types: support "all" or comma-separated list
+    valid_types = ["plain4", "persona4", "tom4", "reasoning4"]
+    if intervention_arg.lower() == "all":
+        intervention_types = valid_types
+    else:
+        # Split by comma and validate each
+        intervention_types = [t.strip() for t in intervention_arg.split(",")]
+        for itype in intervention_types:
+            if itype not in valid_types:
+                print(f"❌ Invalid intervention type: {itype}")
+                print("Available types: plain4, persona4, tom4, reasoning4")
+                print("Or use 'all' to run all 4 types")
+                sys.exit(1)
+    
+    # For folder naming: use first type if single, or "all" if multiple
+    intervention_type = intervention_types[0] if len(intervention_types) == 1 else "all"
     
     # ===== EXPERIMENT SETTINGS =====
     mode = "sum"  # "sum" or "mean"
@@ -463,16 +531,15 @@ async def main():
     # temp_list = [round(0.1 * i, 1) for i in range(0, 11)]  # 0.0 to 1.0
     # runs_per_config = 50
     
-    # For testing - single configuration
-    max_rounds = 30
+    # Professor design: n=10 agents, t_max=20 rounds, 270 replications per (model × treatment)
+    max_rounds = 20
     agents_list = [10]
     temp_list = [1.0]
-    runs_per_config = 50
-    intervention_types = [intervention_type]  # Only the specified intervention
+    runs_per_config = 270
     
     # ===== BATCHING SETTINGS =====
-    batch_size = 2          # Configs per batch
-    max_concurrent = 15      # Max concurrent configs within each batch
+    batch_size = 1       # 1 config per batch: run one game at a time per process so you can run all 4 experiments in parallel
+    max_concurrent = 1   # one game at a time per process (vLLM handles 4 parallel processes)
     resume_from_batch = None # Set to batch number to resume from, or None for auto-resume
     force_fresh_start = False # Set to True to force a fresh start (ignore existing experiments)
 
@@ -486,7 +553,7 @@ async def main():
     
     print(f"🎯 CLEAN INTERVENTION EXPERIMENT SETUP:")
     print(f"   🤖 Model: {model}")
-    print(f"   🎭 Intervention: {intervention_type}")
+    print(f"   🎭 Intervention(s): {', '.join(intervention_types)} ({len(intervention_types)} type{'s' if len(intervention_types) > 1 else ''})")
     print(f"   Agent counts: {len(agents_list)} ({min(agents_list)} to {max(agents_list)})")
     print(f"   Temperatures: {len(temp_list)} ({min(temp_list):.1f} to {max(temp_list):.1f})")
     print(f"   Runs per config: {runs_per_config}")
@@ -494,16 +561,86 @@ async def main():
     print(f"   📦 Batch size: {batch_size}")
     print(f"   ⚡ Max concurrent per batch: {max_concurrent}")
     
-    # Create batch directory with model name and intervention type
+    # Preflight: if using OpenRouter, verify API key and one quick call
+    if model.startswith("openrouter/"):
+        if not os.environ.get("OPENROUTER_API_KEY"):
+            print("❌ OPENROUTER_API_KEY is not set. Get a key at https://openrouter.ai/keys then:")
+            print("   export OPENROUTER_API_KEY=sk-or-...")
+            sys.exit(1)
+        print("🔌 Checking OpenRouter connection...")
+        try:
+            preflight = await chat(model, "Hi", max_tokens=1)
+            if getattr(preflight, "choices", None) and preflight.choices and getattr(preflight.choices[0], "message", None):
+                print("   ✅ OpenRouter OK")
+            else:
+                print("   ⚠ OpenRouter returned unexpected response; continuing anyway.")
+        except Exception as e:
+            print("❌ OpenRouter preflight failed:", e)
+            sys.exit(1)
+    # Preflight: if using localhost or vllm (tunnel or remote server), verify we can reach the API before running
+    elif (model.startswith("localhost:") and "/" in model) or model.startswith("vllm:"):
+        # Parse host and port for TCP check
+        if model.startswith("vllm:"):
+            left = model[5:].split("/")[0]
+            if ":" in left:
+                preflight_host, port_str = left.rsplit(":", 1)
+            else:
+                preflight_host, port_str = "127.0.0.1", left
+        else:
+            preflight_host = "127.0.0.1"
+            port_str = model.split("localhost:")[1].split("/")[0]
+        try:
+            port = int(port_str)
+        except ValueError:
+            port = 5001
+        print("🔌 Checking connection to model server...")
+        # First: can we reach the port at all? (TCP)
+        try:
+            sock = socket.create_connection((preflight_host, port), timeout=10)
+            sock.close()
+        except (socket.timeout, OSError) as e:
+            print()
+            print("❌ Cannot reach {}:{}.".format(preflight_host, port))
+            if preflight_host == "127.0.0.1":
+                print("   From laptop: is the SSH tunnel up? In another terminal run and keep open:")
+                print("   ssh -o ServerAliveInterval=60 -o ServerAliveCountMax=3 -L {}:localhost:{} USER@SERVER".format(port, port))
+                print("   Or on server use localhost:{} directly; or vllm:<server-ip>:{}/<model-id> from another machine.".format(port, port))
+            print()
+            sys.exit(1)
+        # Second: does the API respond?
+        try:
+            preflight = await chat(model, "Hi", max_tokens=1)
+            if getattr(preflight, "is_fallback", False):
+                print()
+                print("❌ Port {} is open but the API request failed.".format(port))
+                print("   On the SERVER, ensure vLLM is serving on that port:")
+                print("     curl -s http://127.0.0.1:{}/v1/models  # expect 200; if not, start the server/container".format(port))
+                print()
+                sys.exit(1)
+        except Exception as e:
+            if "Connection" in str(e) or "refused" in str(e).lower():
+                print()
+                print("❌ API connection failed:", e)
+                print("   Port {} is open (tunnel OK) but the API request failed.".format(port))
+                print("   On the SERVER, check that vLLM is listening on port {}:".format(port))
+                print("     curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:{}/v1/models   # expect 200".format(port))
+                print("     ss -tlnp | grep {}   # or: docker ps (if using container)".format(port))
+                print()
+                sys.exit(1)
+            raise
+        print("   ✅ Connection OK")
+    
+    # Create batch directory with model name and intervention type(s)
+    folder_suffix = "_".join(intervention_types) if len(intervention_types) <= 2 else "all"
     if force_fresh_start:
         # Force fresh start - create new timestamped folder
         batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        batch_folder = f"results/{intervention_type}_experiment_{model_safe_name}_{batch_timestamp}"
+        batch_folder = f"results/{folder_suffix}_experiment_{model_safe_name}_{batch_timestamp}"
         print(f"🆕 Force fresh start - using new experiment folder: {batch_folder}")
         existing_progress = None
     else:
         # Try to find existing progress in resumable folder
-        resumable_folder = f"results/{intervention_type}_experiment_{model_safe_name}_resumable"
+        resumable_folder = f"results/{folder_suffix}_experiment_{model_safe_name}_resumable"
         existing_progress = load_progress(resumable_folder)
         
         if existing_progress:
@@ -512,24 +649,31 @@ async def main():
             print(f"🔄 Found existing progress in: {batch_folder}")
         else:
             # No resumable folder - check if there are any existing experiments to migrate
-            latest_experiment = find_latest_experiment_folder(intervention_type, model_safe_name)
-            if latest_experiment:
-                # Found existing experiment - migrate it to resumable format
-                migrated_folder = migrate_to_resumable(intervention_type, model_safe_name)
-                if migrated_folder:
-                    batch_folder = migrated_folder
-                    existing_progress = load_progress(batch_folder)
-                    print(f"🔄 Found and migrated existing experiment to: {batch_folder}")
+            # For multi-intervention, skip migration (too complex)
+            if len(intervention_types) == 1:
+                latest_experiment = find_latest_experiment_folder(intervention_types[0], model_safe_name)
+                if latest_experiment:
+                    # Found existing experiment - migrate it to resumable format
+                    migrated_folder = migrate_to_resumable(intervention_types[0], model_safe_name)
+                    if migrated_folder:
+                        batch_folder = migrated_folder
+                        existing_progress = load_progress(batch_folder)
+                        print(f"🔄 Found and migrated existing experiment to: {batch_folder}")
+                    else:
+                        # Migration failed - create new experiment
+                        batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        batch_folder = f"results/{folder_suffix}_experiment_{model_safe_name}_{batch_timestamp}"
+                        print(f"🆕 Migration failed, using new experiment folder: {batch_folder}")
                 else:
-                    # Migration failed - create new experiment
+                    # No existing experiments - create new one
                     batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    batch_folder = f"results/{intervention_type}_experiment_{model_safe_name}_{batch_timestamp}"
-                    print(f"🆕 Migration failed, using new experiment folder: {batch_folder}")
+                    batch_folder = f"results/{folder_suffix}_experiment_{model_safe_name}_{batch_timestamp}"
+                    print(f"🆕 No existing experiments found, using new experiment folder: {batch_folder}")
             else:
-                # No existing experiments - create new one
+                # Multiple interventions - create new folder
                 batch_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                batch_folder = f"results/{intervention_type}_experiment_{model_safe_name}_{batch_timestamp}"
-                print(f"🆕 No existing experiments found, using new experiment folder: {batch_folder}")
+                batch_folder = f"results/{folder_suffix}_experiment_{model_safe_name}_{batch_timestamp}"
+                print(f"🆕 Multi-intervention experiment, using new folder: {batch_folder}")
     
     os.makedirs(batch_folder, exist_ok=True)
     
@@ -762,6 +906,12 @@ async def main():
             break
         except Exception as e:
             print(f"❌ Error in batch {batch_num}: {e}")
+            try:
+                import traceback
+                save_last_error(batch_folder, str(e), traceback.format_exc())
+                print(f"   📄 Error saved to: {os.path.join(batch_folder, 'last_error.txt')}")
+            except Exception:
+                pass
             print(f"💾 Progress saved. You can resume from this batch.")
             # Continue to next batch instead of stopping
             continue
@@ -807,6 +957,15 @@ if __name__ == "__main__":
         print(f"❌ Fatal error: {e}")
         import traceback
         traceback.print_exc()
+        try:
+            os.makedirs("results", exist_ok=True)
+            with open("results/last_fatal_error.txt", "w") as f:
+                f.write(str(e))
+                f.write("\n\n--- traceback ---\n")
+                f.write(traceback.format_exc())
+            print(f"   📄 Fatal error saved to: results/last_fatal_error.txt")
+        except Exception:
+            pass
     finally:
         total_end_time = time.time()
         total_elapsed = total_end_time - total_start_time
